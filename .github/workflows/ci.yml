@@ -1,0 +1,64 @@
+---
+# CI runs on push to main. For Phase 0 it mirrors the PR validation jobs;
+# Phase 6 (Hardening) will add semantic-release + container-build steps.
+name: CI
+
+"on":
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint-go:
+    name: Lint Go
+    uses: jacaudi/github-actions/.github/workflows/component-lint.yml@v0.20.1
+    permissions:
+      contents: read
+    with:
+      go: true
+      go-version: ${{ vars.GO_VERSION || '1.24' }}
+
+  lint-config:
+    name: Lint Config
+    uses: jacaudi/github-actions/.github/workflows/component-lint.yml@v0.20.1
+    permissions:
+      contents: read
+    with:
+      yaml: true
+      yamllint-config: .yamllint.yml
+
+  test-go:
+    name: Test Go
+    uses: jacaudi/github-actions/.github/workflows/component-test.yml@v0.20.1
+    permissions:
+      contents: read
+    with:
+      test-framework: go
+      go-version: ${{ vars.GO_VERSION || '1.24' }}
+      coverage: true
+      coverage-threshold: ${{ fromJSON(vars.COVERAGE_THRESHOLD || '0') }}
+      artifact-name: test-results-go
+
+  test-web:
+    name: Test Web
+    uses: jacaudi/github-actions/.github/workflows/component-test.yml@v0.20.1
+    permissions:
+      contents: read
+    with:
+      test-framework: custom
+      working-directory: web
+      install-dependencies: false
+      setup-command: |
+        corepack enable
+        corepack prepare pnpm@9.12.2 --activate
+        cd web && pnpm install --frozen-lockfile
+      test-command: |
+        cd web && pnpm typecheck && pnpm build
+      artifact-name: test-results-web

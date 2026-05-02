@@ -1,0 +1,18 @@
+---
+extends: default
+
+rules:
+  line-length:
+    max: 120
+    level: warning
+  truthy:
+    allowed-values: ['true', 'false', 'on']
+  document-start:
+    present: false
+  comments:
+    min-spaces-from-content: 1
+
+ignore: |
+  web/node_modules/
+  internal/webdist/dist/
+  .worktrees/
