@@ -44,7 +44,8 @@ type RouterDeps struct {
 	Ready           func() bool
 	SourcesHandler  http.Handler
 	SnapshotHandler http.Handler
-	// History, Stream — added in Tasks 10–11
+	HistoryHandler  http.Handler
+	// Stream — added in Task 11
 }
 
 // NewRouter assembles the HTTP surface from the given dependencies:
@@ -52,6 +53,7 @@ type RouterDeps struct {
 //   - /api/version, /api/uiconfig   — JSON endpoints
 //   - /api/sources                  — per-source fetcher health (when SourcesHandler is set)
 //   - /api/snapshot                 — latest cache snapshot with region filter (when SnapshotHandler is set)
+//   - /api/history                  — nearest-prior historical snapshot at ?at=RFC3339 (when HistoryHandler is set)
 //   - /                             — embedded SPA (with SPA-fallback for client-side routes)
 //
 // /api/* paths that don't match return 404 (no SPA fallback for the API namespace).
@@ -72,6 +74,9 @@ func NewRouter(deps RouterDeps) http.Handler {
 		}
 		if deps.SnapshotHandler != nil {
 			r.Method(http.MethodGet, "/snapshot", deps.SnapshotHandler)
+		}
+		if deps.HistoryHandler != nil {
+			r.Method(http.MethodGet, "/history", deps.HistoryHandler)
 		}
 	})
 
