@@ -55,7 +55,7 @@ jobs:
     with:
       test-framework: custom
       working-directory: web
-      node-version: '22'
+      node-version: '24'
       install-dependencies: false
       # setup-command runs from repo ROOT (not working-directory) per the
       # reusable workflow contract. test-command runs from working-directory.
