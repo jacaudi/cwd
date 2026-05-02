@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -89,8 +90,14 @@ type UIConfig struct {
 	EnableHistory  bool   `yaml:"enable_history"`
 }
 
-// Load reads the YAML at path, applies defaults, applies CWD_* env overrides, and validates.
-func Load(path string) (*Config, error) {
+// LoadWithLogger reads the YAML at path, applies defaults, applies CWD_* env overrides, and validates.
+// Parse failures on env overrides are logged as WARN via logger; bad values fall back to the YAML default.
+// If logger is nil, slog.Default() is used.
+func LoadWithLogger(path string, logger *slog.Logger) (*Config, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	cfg := defaults()
 
 	if path != "" {
@@ -103,7 +110,7 @@ func Load(path string) (*Config, error) {
 		}
 	}
 
-	applyEnvOverrides(cfg)
+	applyEnvOverrides(cfg, logger)
 
 	// Re-apply defaults on a per-source basis so partial source maps still get sane defaults.
 	mergeSourceDefaults(cfg)
@@ -112,6 +119,12 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// Load reads the YAML at path, applies defaults, applies CWD_* env overrides, and validates.
+// It uses slog.Default() for logging env-parse warnings.
+func Load(path string) (*Config, error) {
+	return LoadWithLogger(path, slog.Default())
 }
 
 // MissingContact reports whether the operator left server.contact empty.
@@ -180,7 +193,9 @@ func mergeSourceDefaults(cfg *Config) {
 // applyEnvOverrides walks CWD_* env variables and writes them into matching string/int/bool fields.
 // Naming convention: CWD_<SECTION>_<FIELD>, e.g. CWD_SERVER_BIND, CWD_UI_DEFAULT_THEME.
 // Only top-level scalar fields under Server, Store, Cache, Images, UI are supported.
-func applyEnvOverrides(cfg *Config) {
+// Per-source overrides use CWD_SOURCES_<UPPER_SOURCE_NAME>_INTERVAL and CWD_SOURCES_<UPPER_SOURCE_NAME>_ENABLED.
+// Parse failures are logged as WARN via logger; bad values fall back to the current (YAML-supplied) value.
+func applyEnvOverrides(cfg *Config, logger *slog.Logger) {
 	apply := func(prefix string, v reflect.Value) {
 		t := v.Type()
 		for i := 0; i < v.NumField(); i++ {
@@ -198,11 +213,17 @@ func applyEnvOverrides(cfg *Config) {
 			case reflect.String:
 				f.SetString(val)
 			case reflect.Int, reflect.Int64:
-				if n, err := strconv.ParseInt(val, 10, 64); err == nil {
+				n, err := strconv.ParseInt(val, 10, 64)
+				if err != nil {
+					logger.Warn("config.env_parse_failed", "key", envName, "value", val, "err", err.Error())
+				} else {
 					f.SetInt(n)
 				}
 			case reflect.Bool:
-				if b, err := strconv.ParseBool(val); err == nil {
+				b, err := strconv.ParseBool(val)
+				if err != nil {
+					logger.Warn("config.env_parse_failed", "key", envName, "value", val, "err", err.Error())
+				} else {
 					f.SetBool(b)
 				}
 			}
@@ -213,6 +234,33 @@ func applyEnvOverrides(cfg *Config) {
 	apply("cache", reflect.ValueOf(&cfg.Cache).Elem())
 	apply("images", reflect.ValueOf(&cfg.Images).Elem())
 	apply("ui", reflect.ValueOf(&cfg.UI).Elem())
+
+	// Per-source overrides: CWD_SOURCES_<UPPER_SOURCE_NAME>_INTERVAL and _ENABLED.
+	for name, src := range cfg.Sources {
+		upper := strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
+
+		intervalKey := "CWD_SOURCES_" + upper + "_INTERVAL"
+		if v := os.Getenv(intervalKey); v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				logger.Warn("config.env_parse_failed", "key", intervalKey, "value", v, "err", err.Error())
+			} else {
+				src.Interval = d
+			}
+		}
+
+		enabledKey := "CWD_SOURCES_" + upper + "_ENABLED"
+		if v := os.Getenv(enabledKey); v != "" {
+			b, err := strconv.ParseBool(v)
+			if err != nil {
+				logger.Warn("config.env_parse_failed", "key", enabledKey, "value", v, "err", err.Error())
+			} else {
+				src.Enabled = boolPtr(b)
+			}
+		}
+
+		cfg.Sources[name] = src
+	}
 }
 
 func validate(cfg *Config) error {

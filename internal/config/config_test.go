@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -159,5 +161,50 @@ func TestXDGPathsHandleTrailingSlash(t *testing.T) {
 	wantCache := filepath.Join("/tmp/cache-with-slash", "cwd/img")
 	if cfg.Cache.ImageDir != wantCache {
 		t.Errorf("Cache.ImageDir = %q, want %q", cfg.Cache.ImageDir, wantCache)
+	}
+}
+
+func TestEnvOverride_PerSource(t *testing.T) {
+	t.Setenv("CWD_SOURCES_NWS_ALERTS_INTERVAL", "45s")
+	t.Setenv("CWD_SOURCES_NWS_ALERTS_ENABLED", "false")
+	cfg, err := Load("testdata/full.yaml")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	src, ok := cfg.Sources["nws_alerts"]
+	if !ok {
+		t.Fatalf("nws_alerts missing")
+	}
+	if src.Interval != 45*time.Second {
+		t.Errorf("interval: got %v, want 45s", src.Interval)
+	}
+	if src.IsEnabled() {
+		t.Errorf("enabled: expected false")
+	}
+}
+
+func TestEnvOverride_WarnsOnBadValue(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	t.Setenv("CWD_SOURCES_NWS_ALERTS_INTERVAL", "not-a-duration")
+	cfg, err := LoadWithLogger("testdata/full.yaml", logger)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if !bytes.Contains(buf.Bytes(), []byte("config.env_parse_failed")) {
+		t.Errorf("expected WARN, got: %s", buf.String())
+	}
+	if cfg.Sources["nws_alerts"].Interval == 0 {
+		t.Errorf("expected fallback to YAML interval, got zero")
+	}
+}
+
+func TestLoadWithLogger_NilLoggerFallsBack(t *testing.T) {
+	cfg, err := LoadWithLogger("testdata/full.yaml", nil)
+	if err != nil {
+		t.Fatalf("LoadWithLogger(nil logger): %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected non-nil config")
 	}
 }
