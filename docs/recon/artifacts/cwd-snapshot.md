@@ -1,0 +1,582 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - link "NOAA" [ref=e4] [cursor=pointer]:
+      - /url: https://www.noaa.gov
+      - img "NOAA" [ref=e5]
+    - link "NWS" [ref=e6] [cursor=pointer]:
+      - /url: https://www.weather.gov
+      - img "NWS" [ref=e7]
+    - link "DOC" [ref=e8] [cursor=pointer]:
+      - /url: https://www.commerce.gov
+      - img "DOC" [ref=e9]
+    - link "Skip Naviagation Links" [ref=e10] [cursor=pointer]:
+      - /url: "#contents"
+      - img "Skip Naviagation Links" [ref=e11]
+    - link "NCEP Central Operations" [ref=e13] [cursor=pointer]:
+      - /url: https://www.nco.ncep.noaa.gov
+    - link "National Oceanic and Atmospheric Administration" [ref=e15] [cursor=pointer]:
+      - /url: https://www.noaa.gov
+  - generic [ref=e18]:
+    - generic [ref=e19]:
+      - list [ref=e24]:
+        - listitem [ref=e25]:
+          - link "Home" [ref=e27] [cursor=pointer]:
+            - /url: https://www.nco.ncep.noaa.gov
+        - listitem [ref=e28]:
+          - link "MODELS ▼" [ref=e30] [cursor=pointer]:
+            - /url: https://mag.ncep.noaa.gov
+          - generic [ref=e31]:
+            - list:
+              - listitem [ref=e32]:
+                - link "Model Analyses & Guidance" [ref=e33] [cursor=pointer]:
+                  - /url: https://mag.ncep.noaa.gov
+              - listitem [ref=e34]:
+                - link "Current Model Status" [ref=e35] [cursor=pointer]:
+                  - /url: /pmb/nwprod/prodstat_new/
+              - listitem [ref=e36]:
+                - link "Real-Time Data Monitor" [ref=e37] [cursor=pointer]:
+                  - /url: /status/data/realtime/
+              - listitem [ref=e38]:
+                - link "GDAS Data Counts" [ref=e39] [cursor=pointer]:
+                  - /url: /pmb/nwprod/gdas/
+              - listitem [ref=e40]:
+                - link "NWPS WFO Status" [ref=e41] [cursor=pointer]:
+                  - /url: /status/nwps/
+              - listitem [ref=e42]:
+                - link "Products Inventory" [ref=e43] [cursor=pointer]:
+                  - /url: /pmb/products/
+              - listitem [ref=e44]:
+                - link "Model Changes" [ref=e45] [cursor=pointer]:
+                  - /url: /pmb/changes/
+              - listitem [ref=e46]:
+                - link "Model Source Code" [ref=e47] [cursor=pointer]:
+                  - /url: /pmb/codes/nwprod
+        - listitem [ref=e48]:
+          - link "Applications/Services ▼" [ref=e50] [cursor=pointer]:
+            - /url: /omb/apps/
+          - generic [ref=e51]:
+            - list:
+              - listitem [ref=e52]:
+                - link "Weather.gov" [ref=e53] [cursor=pointer]:
+                  - /url: https://www.weather.gov
+              - listitem [ref=e54]:
+                - link "EMWIN" [ref=e55] [cursor=pointer]:
+                  - /url: https://www.weather.gov/emwin/
+              - listitem [ref=e56]:
+                - link "FTPPRD" [ref=e57] [cursor=pointer]:
+                  - /url: https://nomads.ncep.noaa.gov/pub/
+              - listitem [ref=e58]:
+                - link "iNWS" [ref=e59] [cursor=pointer]:
+                  - /url: https://inws.ncep.noaa.gov
+              - listitem [ref=e60]:
+                - link "IRIS (NOAA access)" [ref=e61] [cursor=pointer]:
+                  - /url: https://iris.ncep.noaa.gov
+              - listitem [ref=e62]:
+                - link "MADIS" [ref=e63] [cursor=pointer]:
+                  - /url: https://madis-data.ncep.noaa.gov/
+              - listitem [ref=e64]:
+                - link "MAG" [ref=e65] [cursor=pointer]:
+                  - /url: https://mag.ncep.noaa.gov/
+              - listitem [ref=e66]:
+                - link "MRMS" [ref=e67] [cursor=pointer]:
+                  - /url: https://mrms.ncep.noaa.gov/data/
+              - listitem [ref=e68]:
+                - link "NOMADS" [ref=e69] [cursor=pointer]:
+                  - /url: https://nomads.ncep.noaa.gov
+              - listitem [ref=e70]:
+                - link "NWSChat" [ref=e71] [cursor=pointer]:
+                  - /url: https://nwschat.nws.noaa.gov/registration/login
+              - listitem [ref=e72]:
+                - link "Ridge II Radar" [ref=e73] [cursor=pointer]:
+                  - /url: https://radar.weather.gov
+              - listitem [ref=e74]:
+                - link "TGFTP" [ref=e75] [cursor=pointer]:
+                  - /url: http://tgftp.ncep.noaa.gov
+              - listitem [ref=e76]:
+                - link "IDP Primary Site" [ref=e77] [cursor=pointer]:
+                  - /url: /pmb/primarysite/
+              - listitem [ref=e78]:
+                - link "IDP Implementation Standards" [ref=e79] [cursor=pointer]:
+                  - /url: /idsb/IDP_standards/
+              - listitem [ref=e80]:
+                - link "More..." [ref=e81] [cursor=pointer]:
+                  - /url: /omb/apps/
+        - listitem [ref=e82]:
+          - link "Operational Status ▼" [ref=e84] [cursor=pointer]:
+            - /url: /status/
+          - generic [ref=e85]:
+            - list:
+              - listitem [ref=e86]:
+                - link "Critical Weather Day" [ref=e87] [cursor=pointer]:
+                  - /url: /status/cwd/
+              - listitem [ref=e88]:
+                - link "SDM Administrative Messages" [ref=e89] [cursor=pointer]:
+                  - /url: /status/messages/
+              - listitem [ref=e90]:
+                - link "Dashboard (NOAA access)" [ref=e91] [cursor=pointer]:
+                  - /url: /status/dashboard/
+              - listitem [ref=e92]:
+                - link "Real-Time Data Monitor" [ref=e93] [cursor=pointer]:
+                  - /url: /status/data/realtime/
+              - listitem [ref=e94]:
+                - link "Upper Air & Surface Data QC" [ref=e95] [cursor=pointer]:
+                  - /url: /omb/dataqc/
+              - listitem [ref=e96]:
+                - link "Raob \"Thanks\" Reports" [ref=e97] [cursor=pointer]:
+                  - /url: /status/data/thanks/
+              - listitem [ref=e98]:
+                - link "Winter Storm Reconnaissance" [ref=e99] [cursor=pointer]:
+                  - /url: /status/wsr/
+              - listitem [ref=e100]:
+                - link "Satellite Sectors" [ref=e101] [cursor=pointer]:
+                  - /url: /status/satellite/
+              - listitem [ref=e102]:
+                - link "NWPS WFO Status" [ref=e103] [cursor=pointer]:
+                  - /url: /status/nwps/
+              - listitem [ref=e104]:
+                - link "Radar Level II" [ref=e105] [cursor=pointer]:
+                  - /url: https://www.weather.gov/nl2/NEXRADView
+              - listitem [ref=e106]:
+                - link "Radar Level III" [ref=e107] [cursor=pointer]:
+                  - /url: https://radar3pub.ncep.noaa.gov
+              - listitem [ref=e108]:
+                - link "Schedule of Events (NOAA access)" [ref=e109] [cursor=pointer]:
+                  - /url: /omb/soe/
+        - listitem [ref=e110]:
+          - link "About NCO ▼" [ref=e112] [cursor=pointer]:
+            - /url: https://www.nco.ncep.noaa.gov
+          - generic [ref=e113]:
+            - list:
+              - listitem [ref=e114]:
+                - link "Office of the Director" [ref=e115] [cursor=pointer]:
+                  - /url: /director/
+              - listitem [ref=e116]:
+                - link "Desktop and Facilities Services (DFSD)" [ref=e117] [cursor=pointer]:
+                  - /url: /iwsb/
+              - listitem [ref=e118]:
+                - link "Implementation and Data Services (IDSB)" [ref=e119] [cursor=pointer]:
+                  - /url: /pmb/
+              - listitem [ref=e120]:
+                - link "Network and Security (NSB)" [ref=e121] [cursor=pointer]:
+                  - /url: /nsb/
+              - listitem [ref=e122]:
+                - link "Operational Monitoring (OMB)" [ref=e123] [cursor=pointer]:
+                  - /url: /omb/
+              - listitem [ref=e124]:
+                - link "Software Development (SDB)" [ref=e125] [cursor=pointer]:
+                  - /url: /sdb/
+              - listitem [ref=e126]:
+                - link "Organizational Chart" [ref=e127] [cursor=pointer]:
+                  - /url: /director/orgchart.php
+              - listitem [ref=e128]:
+                - link "Web Site Map" [ref=e129] [cursor=pointer]:
+                  - /url: /sitemap/
+        - listitem [ref=e130]:
+          - link "Centers ▼" [ref=e132] [cursor=pointer]:
+            - /url: https://www.weather.gov/ncep/
+          - generic [ref=e133]:
+            - list:
+              - listitem [ref=e134]:
+                - link "Aviation (AWC)" [ref=e135] [cursor=pointer]:
+                  - /url: https://www.aviationweather.gov
+              - listitem [ref=e136]:
+                - link "Climate (CPC)" [ref=e137] [cursor=pointer]:
+                  - /url: https://www.cpc.ncep.noaa.gov/
+              - listitem [ref=e138]:
+                - link "Hurricane (NHC/CPHC)" [ref=e139] [cursor=pointer]:
+                  - /url: https://www.nhc.noaa.gov
+              - listitem [ref=e140]:
+                - link "Storm (SPC)" [ref=e141] [cursor=pointer]:
+                  - /url: https://www.spc.noaa.gov
+              - listitem [ref=e142]:
+                - link "Space (SWPC)" [ref=e143] [cursor=pointer]:
+                  - /url: https://www.swpc.noaa.gov
+              - listitem [ref=e144]:
+                - link "Tsunami (NTWC/PTWC)" [ref=e145] [cursor=pointer]:
+                  - /url: https://tsunami.gov
+              - listitem [ref=e146]:
+                - link "Water (NWC)" [ref=e147] [cursor=pointer]:
+                  - /url: https://water.noaa.gov/
+              - listitem [ref=e148]:
+                - link "Weather (WPC)" [ref=e149] [cursor=pointer]:
+                  - /url: https://www.wpc.ncep.noaa.gov
+              - listitem [ref=e150]:
+                - link "Ocean (OPC)" [ref=e151] [cursor=pointer]:
+                  - /url: https://ocean.weather.gov
+              - listitem [ref=e152]:
+                - link "Ice (USNIC)" [ref=e153] [cursor=pointer]:
+                  - /url: https://usicecenter.gov
+              - listitem [ref=e154]:
+                - link "Technology (NCO)" [ref=e155] [cursor=pointer]:
+                  - /url: https://www.nco.ncep.noaa.gov
+              - listitem [ref=e156]:
+                - link "Modeling (EMC)" [ref=e157] [cursor=pointer]:
+                  - /url: https://www.emc.ncep.noaa.gov/
+              - listitem [ref=e158]:
+                - link "Buoy Data (NDBC)" [ref=e159] [cursor=pointer]:
+                  - /url: https://www.ndbc.noaa.gov
+              - listitem [ref=e160]:
+                - link "Radar Ops (ROC)" [ref=e161] [cursor=pointer]:
+                  - /url: https://www.roc.noaa.gov/
+        - listitem [ref=e162]:
+          - link "Search" [ref=e164] [cursor=pointer]:
+            - /url: https://www.weather.gov/search
+          - generic [ref=e167]:
+            - text: Search For
+            - textbox "Search For" [ref=e168]
+            - button "Go" [ref=e169]
+            - paragraph [ref=e170]:
+              - radio "NWS" [checked] [ref=e171]
+              - text: NWS
+              - radio "All NOAA" [ref=e172]
+              - text: All NOAA
+      - generic [ref=e174]:
+        - generic [ref=e177]:
+          - generic [ref=e178]:
+            - img "CWDimage" [ref=e179]
+            - generic [ref=e180]: Critical Weather Day Status
+          - generic [ref=e181]: "Current Status: NORMAL"
+          - generic [ref=e182]: "Page loaded: 22:22 UTC | 12:22 pm Hawaii | 2:22 pm Alaska | 3:22 pm Pacific | 4:22 pm Mountain | 5:22 pm Central | 6:22 pm Eastern"
+        - generic [ref=e184]:
+          - generic [ref=e185]:
+            - generic [ref=e186]:
+              - generic [ref=e187]: No Critical Weather Day or Enhanced Caution is currently in effect.
+              - generic [ref=e189]:
+                - link "CWD Directive" [ref=e190] [cursor=pointer]:
+                  - /url: https://www.weather.gov/media/directives/010_pdfs/pd01022003curr.pdf
+                - text: "|"
+                - link "IT Playbooks (NOAA access)" [ref=e191] [cursor=pointer]:
+                  - /url: https://sites.google.com/noaa.gov/nws-nco/playbooks
+            - generic [ref=e192]:
+              - generic [ref=e193]:
+                - link "WWA Map" [ref=e194] [cursor=pointer]:
+                  - /url: https://www.weather.gov
+                  - img "WWA Map" [ref=e195]
+                - link "WWA Map AK":
+                  - /url: https://www.weather.gov/arh/
+                  - img "WWA Map AK" [ref=e196] [cursor=pointer]
+                - link "WWA Map HI":
+                  - /url: https://www.weather.gov/hfo
+                  - img "WWA Map HI" [ref=e197] [cursor=pointer]
+                - link "WWA Map Pago Pago":
+                  - /url: https://www.weather.gov/ppg
+                  - img "WWA Map Pago Pago" [ref=e198] [cursor=pointer]
+                - link "WWA Map Guam":
+                  - /url: https://www.weather.gov/gum/
+                  - img "WWA Map Guam" [ref=e199] [cursor=pointer]
+                - link "WWA Map Puerto Rico":
+                  - /url: https://www.weather.gov/SJU
+                  - img "WWA Map Puerto Rico" [ref=e200] [cursor=pointer]
+              - generic [ref=e202]:
+                - text: "Alerts:"
+                - generic [ref=e469]:
+                  - link "alert icon1" [ref=e470] [cursor=pointer]:
+                    - /url: https://www.nco.ncep.noaa.gov/status/cwd/#midpage
+                    - img "alert icon" [ref=e471]
+                    - text: "1"
+                  - link "alert icon1" [ref=e472] [cursor=pointer]:
+                    - /url: https://forecast.weather.gov/wwamap/wwatxtget.php?cwa=usa&wwa=Flash%20Flood%20Warning
+                    - img "alert icon" [ref=e473]
+                    - text: "1"
+                  - link "alert icon2" [ref=e474] [cursor=pointer]:
+                    - /url: https://forecast.weather.gov/wwamap/wwatxtget.php?cwa=usa&wwa=High%20Wind%20Warning
+                    - img "alert icon" [ref=e475]
+                    - text: "2"
+                  - link "alert icon4" [ref=e476] [cursor=pointer]:
+                    - /url: https://www.weather.gov
+                    - img "alert icon" [ref=e477]
+                    - text: "4"
+          - generic [ref=e203]:
+            - text: Outlook
+            - generic [ref=e204]: Updated 0838Z Fri May 01 2026
+          - generic [ref=e205]:
+            - generic [ref=e207]:
+              - generic "01/0900Z - normal" [ref=e208]
+              - generic "01/1000Z - Normal" [ref=e209]
+              - generic "01/1100Z - Normal" [ref=e210]
+            - generic [ref=e211]:
+              - generic [ref=e212]:
+                - generic "01/1200Z - Normal" [ref=e213]: "12"
+                - generic "01/1300Z - Normal" [ref=e214]
+                - generic "01/1400Z - Normal" [ref=e215]
+                - generic "01/1500Z - Normal" [ref=e216]
+                - generic "01/1600Z - Normal" [ref=e217]
+                - generic "01/1700Z - Normal" [ref=e218]
+                - generic "01/1800Z - Normal" [ref=e219]: "18"
+                - generic "01/1900Z - Normal" [ref=e220]
+                - generic "01/2000Z - Normal" [ref=e221]
+                - generic "01/2100Z - Normal" [ref=e222]
+                - generic "01/2200Z - Normal" [ref=e223]
+                - generic "01/2300Z - Normal" [ref=e224]
+                - generic "02/0000Z - Normal" [ref=e225]: "00"
+                - generic "02/0100Z - Normal" [ref=e226]
+                - generic "02/0200Z - Normal" [ref=e227]
+                - generic "02/0300Z - Normal" [ref=e228]
+                - generic "02/0400Z - Normal" [ref=e229]
+                - generic "02/0500Z - Normal" [ref=e230]
+                - generic "02/0600Z - Normal" [ref=e231]: "06"
+                - generic "02/0700Z - Normal" [ref=e232]
+                - generic "02/0800Z - Normal" [ref=e233]
+                - generic "02/0900Z - Normal" [ref=e234]
+                - generic "02/1000Z - Normal" [ref=e235]
+                - generic "02/1100Z - Normal" [ref=e236]
+              - generic [ref=e237]: "Fri May 01: Normal"
+            - generic [ref=e238]:
+              - generic [ref=e239]:
+                - generic "02/1200Z - Normal" [ref=e240]: "12"
+                - generic "02/1300Z - Normal" [ref=e241]
+                - generic "02/1400Z - Normal" [ref=e242]
+                - generic "02/1500Z - Normal" [ref=e243]
+                - generic "02/1600Z - Normal" [ref=e244]
+                - generic "02/1700Z - Normal" [ref=e245]
+                - generic "02/1800Z - Normal" [ref=e246]: "18"
+                - generic "02/1900Z - Normal" [ref=e247]
+                - generic "02/2000Z - Normal" [ref=e248]
+                - generic "02/2100Z - Normal" [ref=e249]
+                - generic "02/2200Z - Normal" [ref=e250]
+                - generic "02/2300Z - Normal" [ref=e251]
+                - generic "03/0000Z - Normal" [ref=e252]: "00"
+                - generic "03/0100Z - Normal" [ref=e253]
+                - generic "03/0200Z - Normal" [ref=e254]
+                - generic "03/0300Z - Normal" [ref=e255]
+                - generic "03/0400Z - Normal" [ref=e256]
+                - generic "03/0500Z - Normal" [ref=e257]
+                - generic "03/0600Z - Normal" [ref=e258]: "06"
+                - generic "03/0700Z - Normal" [ref=e259]
+                - generic "03/0800Z - Normal" [ref=e260]
+                - generic "03/0900Z - Normal" [ref=e261]
+                - generic "03/1000Z - Normal" [ref=e262]
+                - generic "03/1100Z - Normal" [ref=e263]
+              - generic [ref=e264]: "Sat May 02: Normal"
+            - generic [ref=e265]:
+              - generic [ref=e266]:
+                - generic "03/1200Z - Normal" [ref=e267]: "12"
+                - generic "03/1300Z - Normal" [ref=e268]
+                - generic "03/1400Z - Normal" [ref=e269]
+                - generic "03/1500Z - Normal" [ref=e270]
+                - generic "03/1600Z - Normal" [ref=e271]
+                - generic "03/1700Z - Normal" [ref=e272]
+                - generic "03/1800Z - Normal" [ref=e273]: "18"
+                - generic "03/1900Z - Normal" [ref=e274]
+                - generic "03/2000Z - Normal" [ref=e275]
+                - generic "03/2100Z - Normal" [ref=e276]
+                - generic "03/2200Z - Normal" [ref=e277]
+                - generic "03/2300Z - Normal" [ref=e278]
+                - generic "04/0000Z - Normal" [ref=e279]: "00"
+                - generic "04/0100Z - Normal" [ref=e280]
+                - generic "04/0200Z - Normal" [ref=e281]
+                - generic "04/0300Z - Normal" [ref=e282]
+                - generic "04/0400Z - Normal" [ref=e283]
+                - generic "04/0500Z - Normal" [ref=e284]
+                - generic "04/0600Z - Normal" [ref=e285]: "06"
+                - generic "04/0700Z - Normal" [ref=e286]
+                - generic "04/0800Z - Normal" [ref=e287]
+                - generic "04/0900Z - Normal" [ref=e288]
+                - generic "04/1000Z - Normal" [ref=e289]
+                - generic "04/1100Z - Normal" [ref=e290]
+              - generic [ref=e291]: "Sun May 03: Normal"
+          - generic [ref=e292]: Critical Weather Day is not expected in the next 3 days.
+          - generic [ref=e293]: Hazards
+          - generic [ref=e294]:
+            - img "wx icon" [ref=e295]
+            - text: Severe Thunderstorms
+          - generic [ref=e296]:
+            - link "SPC thunderstorm outlook" [ref=e298] [cursor=pointer]:
+              - /url: https://www.spc.noaa.gov/products/outlook/day1otlk.html
+              - img "SPC thunderstorm outlook" [ref=e299]
+            - link "SPC thunderstorm outlook" [ref=e301] [cursor=pointer]:
+              - /url: https://www.spc.noaa.gov/products/outlook/day2otlk.html
+              - img "SPC thunderstorm outlook" [ref=e302]
+            - link "SPC thunderstorm outlook" [ref=e304] [cursor=pointer]:
+              - /url: https://www.spc.noaa.gov/products/outlook/day3otlk.html
+              - img "SPC thunderstorm outlook" [ref=e305]
+          - generic [ref=e306]:
+            - img "wx icon" [ref=e307]
+            - text: Wildfire
+          - generic [ref=e308]:
+            - link "SPC fire weather outlook" [ref=e310] [cursor=pointer]:
+              - /url: https://www.spc.noaa.gov/products/fire_wx/fwdy1.html
+              - img "SPC fire weather outlook" [ref=e311]
+            - link "SPC fire weather outlook" [ref=e313] [cursor=pointer]:
+              - /url: https://www.spc.noaa.gov/products/fire_wx/fwdy2.html
+              - img "SPC fire weather outlook" [ref=e314]
+            - link "SPC fire weather outlook" [ref=e316] [cursor=pointer]:
+              - /url: https://www.spc.noaa.gov/products/exper/fire_wx/
+              - img "SPC fire weather outlook" [ref=e317]
+          - generic [ref=e318]:
+            - img "wx icon" [ref=e319]
+            - text: Excessive Rainfall
+          - generic [ref=e320]:
+            - link "WPC ERO" [ref=e322] [cursor=pointer]:
+              - /url: https://www.wpc.ncep.noaa.gov/qpf/ero.php?opt=curr&day=1
+              - img "WPC ERO" [ref=e323]
+            - link "WPC ERO" [ref=e325] [cursor=pointer]:
+              - /url: https://www.wpc.ncep.noaa.gov/qpf/ero.php?opt=curr&day=2
+              - img "WPC ERO" [ref=e326]
+            - link "WPC ERO" [ref=e328] [cursor=pointer]:
+              - /url: https://www.wpc.ncep.noaa.gov/qpf/ero.php?opt=curr&day=3
+              - img "WPC ERO" [ref=e329]
+          - generic [ref=e330]:
+            - img "wx icon" [ref=e331]
+            - text: Winter Weather
+          - generic [ref=e332]:
+            - link "WPC WSSI" [ref=e334] [cursor=pointer]:
+              - /url: https://www.wpc.ncep.noaa.gov/wwd/wssi/wssi.php
+              - img "WPC WSSI" [ref=e335]
+            - link "WPC WSSI" [ref=e337] [cursor=pointer]:
+              - /url: https://www.wpc.ncep.noaa.gov/wwd/wssi/wssi.php
+              - img "WPC WSSI" [ref=e338]
+            - link "WPC WSSI" [ref=e340] [cursor=pointer]:
+              - /url: https://www.wpc.ncep.noaa.gov/wwd/wssi/wssi.php
+              - img "WPC WSSI" [ref=e341]
+          - generic [ref=e342]:
+            - img "wx icon" [ref=e343]
+            - text: Space Weather
+          - generic [ref=e344]:
+            - generic "SWPC Day 1 Forecast" [ref=e345] [cursor=pointer]:
+              - button "Predicted for 2026-05-01" [ref=e346]
+              - generic [ref=e347]:
+                - button "R1-R2 40% R3-R5 5%" [ref=e348]:
+                  - generic [ref=e349]:
+                    - generic [ref=e350]: R1-R2
+                    - generic [ref=e351]: 40%
+                  - generic [ref=e352]:
+                    - generic [ref=e353]: R3-R5
+                    - generic [ref=e354]: 5%
+                - button "S1 or greater 1%" [ref=e355]:
+                  - generic [ref=e356]:
+                    - generic [ref=e357]:
+                      - text: S1 or
+                      - text: greater
+                    - generic [ref=e358]: 1%
+                - button "G none" [ref=e359]:
+                  - generic [ref=e360]: G
+                  - generic [ref=e361]: none
+            - generic "SWPC Day 2 Forecast" [ref=e362] [cursor=pointer]:
+              - generic [ref=e363]: Predicted for 2026-05-02
+              - generic [ref=e364]:
+                - generic [ref=e365]:
+                  - generic [ref=e366]:
+                    - generic [ref=e367]: R1-R2
+                    - generic [ref=e368]: 40%
+                  - generic [ref=e369]:
+                    - generic [ref=e370]: R3-R5
+                    - generic [ref=e371]: 5%
+                - generic [ref=e373]:
+                  - generic [ref=e374]:
+                    - text: S1 or
+                    - text: greater
+                  - generic [ref=e375]: 1%
+                - generic [ref=e376]:
+                  - generic [ref=e377]: G
+                  - generic [ref=e378]: none
+            - generic "SWPC Day 3 Forecast" [ref=e379] [cursor=pointer]:
+              - generic [ref=e380]: Predicted for 2026-05-03
+              - generic [ref=e381]:
+                - generic [ref=e382]:
+                  - generic [ref=e383]:
+                    - generic [ref=e384]: R1-R2
+                    - generic [ref=e385]: 40%
+                  - generic [ref=e386]:
+                    - generic [ref=e387]: R3-R5
+                    - generic [ref=e388]: 5%
+                - generic [ref=e390]:
+                  - generic [ref=e391]:
+                    - text: S1 or
+                    - text: greater
+                  - generic [ref=e392]: 1%
+                - generic [ref=e393]:
+                  - generic [ref=e394]: G
+                  - generic [ref=e395]: none
+          - generic [ref=e396]:
+            - img "wx icon" [ref=e397]
+            - text: Tropical Cyclones
+          - generic [ref=e398]:
+            - link "JTWC Product" [ref=e400] [cursor=pointer]:
+              - /url: https://www.metoc.navy.mil/jtwc/jtwc.html
+              - img "JTWC Product" [ref=e401]
+            - link "NHC Product" [ref=e403] [cursor=pointer]:
+              - /url: https://www.nhc.noaa.gov/gtwo.php?basin=epac&fdays=7
+              - img "NHC Product" [ref=e404]
+            - link "NHC Product" [ref=e406] [cursor=pointer]:
+              - /url: https://www.nhc.noaa.gov/gtwo.php?basin=atlc&fdays=7
+              - img "NHC Product" [ref=e407]
+          - generic [ref=e408]:
+            - generic [ref=e409]:
+              - generic [ref=e410]:
+                - img "wx icon" [ref=e411]
+                - generic [ref=e412]: Flooding
+              - link "NWS FHO" [ref=e415] [cursor=pointer]:
+                - /url: https://water.noaa.gov/operations/fho
+                - img "NWS FHO" [ref=e416]
+            - generic [ref=e417]:
+              - generic [ref=e418]:
+                - img "wx icon" [ref=e419]
+                - generic [ref=e420]: Tsunamis
+              - generic [ref=e422]:
+                - text: No active tsunami watches/warnings. Visit
+                - link "tsunami.gov" [ref=e479] [cursor=pointer]:
+                  - /url: https://www.tsunami.gov
+                - text: for more info.
+              - generic [ref=e424]:
+                - img "wx icon" [ref=e425]
+                - generic [ref=e426]:
+                  - text: Earthquakes
+                  - generic [ref=e427]:
+                    - text: (
+                    - link "USGS significant events" [ref=e428] [cursor=pointer]:
+                      - /url: https://earthquake.usgs.gov/earthquakes/browse/significant.php#sigdef
+                    - text: in the past 24 hrs)
+              - generic [ref=e431]:
+                - link "M 5.2 - 19 km SE of Silver Springs, Nevada" [ref=e432] [cursor=pointer]:
+                  - /url: https://earthquake.usgs.gov/earthquakes/eventpage/nn00916980
+                - text: 39.3066°N -119.0467°W | 5 meters
+                - text: 2026-05-01 08:17:19(UTC)
+              - generic [ref=e433]:
+                - img "wx icon" [ref=e434]
+                - generic [ref=e435]:
+                  - text: Volcanoes
+                  - generic [ref=e436]:
+                    - text: (
+                    - link "USGS" [ref=e438] [cursor=pointer]:
+                      - /url: https://www.usgs.gov/programs/VHP/volcano-updates
+                    - text: watch/warning alerts)
+              - generic [ref=e441]:
+                - link "AVO Great Sitkin" [ref=e442] [cursor=pointer]:
+                  - /url: https://www.usgs.gov/programs/VHP/volcano-updates#avo
+                - text: "- ORANGE/WATCH"
+                - generic [ref=e443]: May 1, 2026 18:59 UTC - Slow eruption of lava within the summit crater continues with associated low-level seismicity.
+    - generic [ref=e448]:
+      - link "usa.gov" [ref=e450] [cursor=pointer]:
+        - /url: http://www.usa.gov
+        - img "usa.gov" [ref=e451]
+      - paragraph [ref=e453]:
+        - link "US Dept of Commerce" [ref=e454] [cursor=pointer]:
+          - /url: https://www.commerce.gov
+        - link "National Oceanic and Atmospheric Administration" [ref=e455] [cursor=pointer]:
+          - /url: https://www.noaa.gov
+        - link "National Weather Service" [ref=e456] [cursor=pointer]:
+          - /url: https://www.weather.gov
+        - text: 5830 University Research Court
+        - text: College Park, MD 20740
+        - link "NCEP Internet Services Team" [ref=e457] [cursor=pointer]:
+          - /url: https://www.nco.ncep.noaa.gov/mail_webmaster/
+      - generic [ref=e458]:
+        - generic [ref=e459]:
+          - link "Disclaimer" [ref=e460] [cursor=pointer]:
+            - /url: https://www.weather.gov/disclaimer
+          - link "Information Quality" [ref=e461] [cursor=pointer]:
+            - /url: http://www.cio.noaa.gov/services_programs/info_quality.html
+          - link "Help" [ref=e462] [cursor=pointer]:
+            - /url: https://www.weather.gov/help
+          - link "Glossary" [ref=e463] [cursor=pointer]:
+            - /url: https://www.weather.gov/glossary
+        - generic [ref=e464]:
+          - link "Privacy Policy" [ref=e465] [cursor=pointer]:
+            - /url: https://www.weather.gov/privacy
+          - link "Freedom of Information Act (FOIA)" [ref=e466] [cursor=pointer]:
+            - /url: https://www.noaa.gov/foia-freedom-of-information-act
+          - link "About Us" [ref=e467] [cursor=pointer]:
+            - /url: https://www.weather.gov/about
+          - link "Career Opportunities" [ref=e468] [cursor=pointer]:
+            - /url: https://www.weather.gov/careers

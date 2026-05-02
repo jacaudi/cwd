@@ -1,0 +1,18 @@
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Tooling
+.claude/
+
+# Worktrees (project-local isolated workspaces)
+.worktrees/
+worktrees/
+
+# Local config & state
+*.local.yaml
+config.local.yaml
+
+# Phase 0 will expand this with Go and Node entries.
