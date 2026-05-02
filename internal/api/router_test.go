@@ -12,7 +12,7 @@ import (
 
 func TestRouterServesAllEndpoints(t *testing.T) {
 	cfg := &config.Config{UI: config.UIConfig{DefaultTheme: "dark", DefaultLanding: "/", EnableHistory: true}}
-	h := NewRouter(cfg, func() bool { return true })
+	h := NewRouter(RouterDeps{Config: cfg, Ready: func() bool { return true }})
 
 	cases := []struct {
 		path string
@@ -35,7 +35,7 @@ func TestRouterServesAllEndpoints(t *testing.T) {
 
 func TestRouterServesEmbeddedSPAOnUnknownPath(t *testing.T) {
 	cfg := &config.Config{UI: config.UIConfig{DefaultTheme: "dark"}}
-	h := NewRouter(cfg, func() bool { return true })
+	h := NewRouter(RouterDeps{Config: cfg, Ready: func() bool { return true }})
 
 	req := httptest.NewRequest(http.MethodGet, "/some/spa/route", nil)
 	rr := httptest.NewRecorder()
@@ -56,7 +56,7 @@ func TestRouterServesEmbeddedSPAOnUnknownPath(t *testing.T) {
 
 func TestRouterDoesNotIntercept404OnAPI(t *testing.T) {
 	cfg := &config.Config{UI: config.UIConfig{DefaultTheme: "dark"}}
-	h := NewRouter(cfg, func() bool { return true })
+	h := NewRouter(RouterDeps{Config: cfg, Ready: func() bool { return true }})
 
 	for _, path := range []string{
 		"/api/does-not-exist",
@@ -74,7 +74,7 @@ func TestRouterDoesNotIntercept404OnAPI(t *testing.T) {
 
 func TestRouterReturns404ForMissingStaticAssets(t *testing.T) {
 	cfg := &config.Config{UI: config.UIConfig{DefaultTheme: "dark"}}
-	h := NewRouter(cfg, func() bool { return true })
+	h := NewRouter(RouterDeps{Config: cfg, Ready: func() bool { return true }})
 
 	// Paths that look like static assets (have a file extension under reserved
 	// prefixes) must NOT fall back to index.html — a stale <script src> after
@@ -96,7 +96,7 @@ func TestRouterReturns404ForMissingStaticAssets(t *testing.T) {
 
 func TestRouterFallsBackToSPAForExtensionlessRoutes(t *testing.T) {
 	cfg := &config.Config{UI: config.UIConfig{DefaultTheme: "dark"}}
-	h := NewRouter(cfg, func() bool { return true })
+	h := NewRouter(RouterDeps{Config: cfg, Ready: func() bool { return true }})
 
 	// Client-side routes (no extension, not /api/* or /assets/*) must
 	// receive index.html so react-router can take over.

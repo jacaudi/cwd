@@ -37,24 +37,37 @@ var staticExtensions = map[string]struct{}{
 	".xml":   {},
 }
 
-// NewRouter assembles the Phase 0 HTTP surface:
+// RouterDeps wires the HTTP surface to the rest of the server.
+// Each handler is constructed in server.Run() and passed in here.
+type RouterDeps struct {
+	Config         *config.Config
+	Ready          func() bool
+	SourcesHandler http.Handler
+	// Snapshot, History, Stream — added in Tasks 9–11
+}
+
+// NewRouter assembles the HTTP surface from the given dependencies:
 //   - /healthz, /readyz             — liveness + readiness probes
 //   - /api/version, /api/uiconfig   — JSON endpoints
+//   - /api/sources                  — per-source fetcher health (when SourcesHandler is set)
 //   - /                             — embedded SPA (with SPA-fallback for client-side routes)
 //
 // /api/* paths that don't match return 404 (no SPA fallback for the API namespace).
-func NewRouter(cfg *config.Config, ready func() bool) http.Handler {
+func NewRouter(deps RouterDeps) http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimid.RequestID)
 	r.Use(chimid.RealIP)
 	r.Use(chimid.Recoverer)
 
 	r.Get("/healthz", Healthz())
-	r.Get("/readyz", Readyz(ready))
+	r.Get("/readyz", Readyz(deps.Ready))
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/version", Version())
-		r.Get("/uiconfig", UIConfig(cfg))
+		r.Get("/uiconfig", UIConfig(deps.Config))
+		if deps.SourcesHandler != nil {
+			r.Method(http.MethodGet, "/sources", deps.SourcesHandler)
+		}
 	})
 
 	r.NotFound(spaFallback())

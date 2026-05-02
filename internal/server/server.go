@@ -18,7 +18,7 @@ import (
 func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, addrCh chan<- string) error {
 	ready := func() bool { return true } // Phase 0: nothing to wait on; Phase 1+ wires real readiness.
 
-	handler := api.NewRouter(cfg, ready)
+	handler := api.NewRouter(api.RouterDeps{Config: cfg, Ready: ready})
 
 	ln, err := net.Listen("tcp", cfg.Server.Bind)
 	if err != nil {
