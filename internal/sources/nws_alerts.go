@@ -149,12 +149,22 @@ func parseSeverity(s string) Severity {
 	}
 }
 
-// wfoFromSenderName: per design §5 Phase 1 keeps WFO derivation conservative.
-// Better to return "" than to guess wrong; the region filter tolerates empty WFO.
-func wfoFromSenderName(sender, id string) string {
-	_ = sender
-	_ = id
-	return ""
+// wfoFromAWIPS extracts the 3-letter WFO code from an AWIPS identifier.
+// NWS convention: AWIPSidentifier is typically a 6-char string whose last
+// 3 chars are the issuing office code (WCNTBW → TBW, FLSPAH → PAH).
+// Returns "" when the AWIPS code is too short or not all-uppercase letters.
+func wfoFromAWIPS(awips string) string {
+	if len(awips) < 6 {
+		return ""
+	}
+	code := awips[len(awips)-3:]
+	for i := 0; i < 3; i++ {
+		c := code[i]
+		if c < 'A' || c > 'Z' {
+			return ""
+		}
+	}
+	return code
 }
 
 // ParseNWSAlerts decodes a NWS GeoJSON FeatureCollection response body into a
@@ -211,7 +221,7 @@ func ParseNWSAlerts(body []byte, logger *slog.Logger) ([]Alert, error) {
 			Areas:     areas,
 			UGCs:      append([]string(nil), p.Geocode.UGC...),
 			SAMEs:     append([]string(nil), p.Geocode.SAME...),
-			WFO:       wfoFromSenderName(p.SenderName, f.ID),
+			WFO:       wfoFromAWIPS(awips),
 			VTECEtn:   etn,
 			URL:       f.ID,
 			Category:  cat,

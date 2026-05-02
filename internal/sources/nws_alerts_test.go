@@ -257,6 +257,37 @@ func TestNWSAlerts_ParseMissingParameters(t *testing.T) {
 	}
 }
 
+func TestWFOFromAWIPS(t *testing.T) {
+	cases := []struct {
+		name  string
+		awips string
+		want  string
+	}{
+		{"standard 6-char", "WCNTBW", "TBW"},
+		{"flood warning", "FLSPAH", "PAH"},
+		{"red flag", "RFWBIS", "BIS"},
+		{"tsunami WCA", "TSUWCA", "WCA"},
+		{"too short", "TSU", ""},
+		{"empty", "", ""},
+		{"contains digit", "WCN1BW", ""},
+		{"lowercase", "wcntbw", ""},
+	}
+	for _, tc := range cases {
+		if got := wfoFromAWIPS(tc.awips); got != tc.want {
+			t.Errorf("%s: wfoFromAWIPS(%q) = %q, want %q", tc.name, tc.awips, got, tc.want)
+		}
+	}
+}
+
+func TestNWSAlerts_ParseSetsWFO(t *testing.T) {
+	body := loadFixture(t, "alerts_active_tsunami.json")
+	logger, _ := newWarnCapturingLogger()
+	got, _ := ParseNWSAlerts(body, logger)
+	if len(got) != 1 || got[0].WFO != "WCA" {
+		t.Errorf("expected WFO=WCA, got %q (len=%d)", got[0].WFO, len(got))
+	}
+}
+
 func TestNWSAlerts_AreasEmptyMarshalsAsArray(t *testing.T) {
 	// Lock the wire-shape contract: an alert with empty areaDesc must marshal
 	// areas as `[]`, not `null` — TS frontend types `Alert.areas: string[]`.
