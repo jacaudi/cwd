@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/acaudill/cwd/internal/config"
+	"github.com/jacaudi/cwd/internal/config"
 )
 
 func TestRunStartsAndShutsDownGracefully(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimid "github.com/go-chi/chi/v5/middleware"
 
-	"github.com/acaudill/cwd/internal/config"
-	"github.com/acaudill/cwd/internal/webdist"
+	"github.com/jacaudi/cwd/internal/config"
+	"github.com/jacaudi/cwd/internal/webdist"
 )
 
 // NewRouter assembles the Phase 0 HTTP surface:

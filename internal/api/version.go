@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"runtime"
 
-	"github.com/acaudill/cwd/internal/version"
+	"github.com/jacaudi/cwd/internal/version"
 )
 
 // Version returns a handler that emits the build-time identifiers as JSON.

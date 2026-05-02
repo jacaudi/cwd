@@ -10,9 +10,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/acaudill/cwd/internal/config"
-	"github.com/acaudill/cwd/internal/server"
-	"github.com/acaudill/cwd/internal/version"
+	"github.com/jacaudi/cwd/internal/config"
+	"github.com/jacaudi/cwd/internal/server"
+	"github.com/jacaudi/cwd/internal/version"
 )
 
 func main() {

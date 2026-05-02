@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/acaudill/cwd/internal/config"
+	"github.com/jacaudi/cwd/internal/config"
 )
 
 func TestRouterServesAllEndpoints(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/acaudill/cwd/internal/config"
+	"github.com/jacaudi/cwd/internal/config"
 )
 
 func TestUIConfigSubsetsTheConfig(t *testing.T) {

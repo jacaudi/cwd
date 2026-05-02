@@ -4,7 +4,7 @@
 GO          ?= go
 BIN_DIR     ?= bin
 BIN          := $(BIN_DIR)/cwd
-PKG          := github.com/acaudill/cwd
+PKG          := github.com/jacaudi/cwd
 
 VERSION     ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT      ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)

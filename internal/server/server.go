@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/acaudill/cwd/internal/api"
-	"github.com/acaudill/cwd/internal/config"
+	"github.com/jacaudi/cwd/internal/api"
+	"github.com/jacaudi/cwd/internal/config"
 )
 
 // Run binds the configured address and serves until ctx is canceled.

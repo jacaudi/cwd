@@ -1,4 +1,4 @@
-module github.com/acaudill/cwd
+module github.com/jacaudi/cwd
 
 go 1.26.2
 

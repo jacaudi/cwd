@@ -3,9 +3,9 @@ package version
 
 // These are overridden at build time, e.g.:
 //
-//	go build -ldflags="-X github.com/acaudill/cwd/internal/version.Version=v0.1.0 \
-//	  -X github.com/acaudill/cwd/internal/version.Commit=$(git rev-parse --short HEAD) \
-//	  -X github.com/acaudill/cwd/internal/version.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+//	go build -ldflags="-X github.com/jacaudi/cwd/internal/version.Version=v0.1.0 \
+//	  -X github.com/jacaudi/cwd/internal/version.Commit=$(git rev-parse --short HEAD) \
+//	  -X github.com/jacaudi/cwd/internal/version.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 var (
 	Version = "dev"
 	Commit  = "unknown"

@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/acaudill/cwd/internal/version"
+	"github.com/jacaudi/cwd/internal/version"
 )
 
 func TestVersionReturnsBuildInfo(t *testing.T) {
