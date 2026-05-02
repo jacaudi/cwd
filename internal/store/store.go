@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	_ "modernc.org/sqlite"
 )
@@ -19,9 +21,16 @@ type Store struct {
 	db *sql.DB
 }
 
-// Open initializes a SQLite connection at path (created if missing).
+// Open initializes a SQLite connection at path (created if missing). Parent
+// directories are created with 0700 permissions so first-run users don't have
+// to mkdir XDG_STATE_HOME themselves.
 // Caller must call Migrate at least once before Append/Latest/At.
 func Open(path string) (*Store, error) {
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return nil, fmt.Errorf("store: mkdir %q: %w", dir, err)
+		}
+	}
 	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)", path)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
