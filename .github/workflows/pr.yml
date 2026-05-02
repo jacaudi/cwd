@@ -18,7 +18,7 @@ jobs:
       contents: read
     with:
       go: true
-      go-version: ${{ vars.GO_VERSION || '1.24' }}
+      go-version: ${{ vars.GO_VERSION || '1.26' }}
 
   # ── Lint config files (YAML + JSON) ───────────────────────────────────────
   lint-config:
@@ -38,7 +38,7 @@ jobs:
       contents: read
     with:
       test-framework: go
-      go-version: ${{ vars.GO_VERSION || '1.24' }}
+      go-version: ${{ vars.GO_VERSION || '1.26' }}
       coverage: true
       coverage-threshold: ${{ fromJSON(vars.COVERAGE_THRESHOLD || '0') }}
       # Embed placeholder is committed so go build/test does not require
