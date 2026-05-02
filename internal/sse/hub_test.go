@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jacaudi/cwd/internal/cache"
+	"github.com/jacaudi/cwd/internal/sources"
 )
 
 type fakeSink struct {
@@ -75,6 +76,46 @@ func TestHub_EmitsSnapshotOnConnect(t *testing.T) {
 			t.Fatalf("no snapshot: %q", sink.String())
 		default:
 			if strings.Contains(sink.String(), "event: snapshot") {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+type matchOnlyA struct{}
+
+func (matchOnlyA) Apply(in []sources.Alert) []sources.Alert {
+	out := make([]sources.Alert, 0, len(in))
+	for _, a := range in {
+		if a.ID == "a1" {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+func TestHub_AppliesFilterToSnapshotAndUpdates(t *testing.T) {
+	c := cache.New()
+	payload := []sources.Alert{{ID: "a1"}, {ID: "a2"}}
+	c.Set(cache.Envelope{Source: "nws_alerts", FetchedAt: time.Now(), Validator: "v1", Payload: payload})
+
+	h := NewHub(c, []string{"nws_alerts"}, WithFilter(matchOnlyA{}))
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	go h.Run(ctx)
+
+	sink := &fakeSink{}
+	go h.Serve(ctx, sink)
+
+	deadline := time.After(150 * time.Millisecond)
+	for {
+		select {
+		case <-deadline:
+			t.Fatalf("no snapshot containing a1 only: %q", sink.String())
+		default:
+			body := sink.String()
+			if strings.Contains(body, `"a1"`) && !strings.Contains(body, `"a2"`) {
 				return
 			}
 			time.Sleep(10 * time.Millisecond)

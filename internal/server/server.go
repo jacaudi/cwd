@@ -98,18 +98,19 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, addrCh ch
 		fetchers[name] = fetcher.New(src, c, st, fetcher.WithLogger(logger))
 	}
 
-	// 7. Build SSE hub.
-	enabledNames := make([]string, 0, len(srcs))
-	for n := range srcs {
-		enabledNames = append(enabledNames, n)
-	}
-	hub := sse.NewHub(c, enabledNames)
-
-	// 8. Build region filter.
+	// 7. Build region filter.
 	filter := sources.NewFilter(
 		cfg.Derived.Thresholds.RegionFilter.UGCs,
 		cfg.Derived.Thresholds.RegionFilter.WFOs,
 	)
+
+	// 8. Build SSE hub (with filter so SSE emit applies the same predicate as
+	// /api/snapshot and /api/history — see design §2 Q3, §6.5, §11).
+	enabledNames := make([]string, 0, len(srcs))
+	for n := range srcs {
+		enabledNames = append(enabledNames, n)
+	}
+	hub := sse.NewHub(c, enabledNames, sse.WithFilter(filter))
 
 	// 9. Build /readyz closure — green only if all enabled sources have at least one success.
 	// Empty fetchers map (no sources enabled) → ready immediately.

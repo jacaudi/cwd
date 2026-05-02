@@ -8,7 +8,14 @@ import (
 	"time"
 
 	"github.com/jacaudi/cwd/internal/cache"
+	"github.com/jacaudi/cwd/internal/sources"
 )
+
+// AlertFilter is the predicate the hub applies to nws_alerts payloads before emitting.
+// Set via WithFilter; nil means "match all" (Phase 0 behavior).
+type AlertFilter interface {
+	Apply(in []sources.Alert) []sources.Alert
+}
 
 // Hub fan-outs cached envelopes to SSE clients via per-client Serve calls.
 type Hub struct {
@@ -16,6 +23,7 @@ type Hub struct {
 	sources      []string
 	pingInterval time.Duration
 	flusher      func(io.Writer)
+	filter       AlertFilter
 }
 
 // Option configures a Hub at construction time.
@@ -23,6 +31,9 @@ type Option func(*Hub)
 
 // WithPingInterval overrides the SSE comment-ping cadence (default 25s).
 func WithPingInterval(d time.Duration) Option { return func(h *Hub) { h.pingInterval = d } }
+
+// WithFilter sets the alert filter the hub applies to nws_alerts payloads.
+func WithFilter(f AlertFilter) Option { return func(h *Hub) { h.filter = f } }
 
 // NewHub constructs a Hub bound to a Cache and the source-name allowlist.
 func NewHub(c *cache.Cache, sources []string, opts ...Option) *Hub {
@@ -56,7 +67,7 @@ func (h *Hub) Serve(ctx context.Context, w io.Writer) {
 	}
 	for _, name := range h.sources {
 		if env, ok := h.cache.Get(name); ok {
-			snap.Sources[name] = env
+			snap.Sources[name] = h.applyFilter(name, env)
 		}
 	}
 	_ = writeEvent(w, "snapshot", snap)
@@ -93,7 +104,8 @@ func (h *Hub) Serve(ctx context.Context, w io.Writer) {
 		case <-ctx.Done():
 			return
 		case msg := <-mux:
-			if err := writeEvent(w, msg.name+".update", msg.env); err != nil {
+			out := h.applyFilter(msg.name, msg.env)
+			if err := writeEvent(w, msg.name+".update", out); err != nil {
 				return
 			}
 			h.flusher(w)
@@ -103,6 +115,25 @@ func (h *Hub) Serve(ctx context.Context, w io.Writer) {
 			}
 			h.flusher(w)
 		}
+	}
+}
+
+// applyFilter returns a filtered copy of env when the source is "nws_alerts" and
+// a filter is configured. For all other sources (or when no filter is set) it
+// returns env unchanged.
+func (h *Hub) applyFilter(name string, env cache.Envelope) cache.Envelope {
+	if h.filter == nil || name != "nws_alerts" {
+		return env
+	}
+	alerts, ok := env.Payload.([]sources.Alert)
+	if !ok {
+		return env
+	}
+	return cache.Envelope{
+		Source:    env.Source,
+		FetchedAt: env.FetchedAt,
+		Validator: env.Validator,
+		Payload:   h.filter.Apply(alerts),
 	}
 }
 
