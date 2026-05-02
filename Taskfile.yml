@@ -1,0 +1,94 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# cwd — self-hosted Critical Weather Day Status
+# Run `task` (or `task help`) to see available targets.
+version: "3"
+
+vars:
+  BIN_DIR: bin
+  BIN: "{{.BIN_DIR}}/cwd"
+  PKG: github.com/jacaudi/cwd
+  WEB_DIR: web
+
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo unknown
+  DATE:
+    sh: date -u +%Y-%m-%dT%H:%M:%SZ
+  LDFLAGS: >-
+    -X {{.PKG}}/internal/version.Version={{.VERSION}}
+    -X {{.PKG}}/internal/version.Commit={{.COMMIT}}
+    -X {{.PKG}}/internal/version.Date={{.DATE}}
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task: help
+
+  help:
+    desc: List all available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  # ── Backend ────────────────────────────────────────────────────────────────
+  build:
+    desc: Build the cwd binary (assumes web/dist already populated)
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - go build -ldflags="{{.LDFLAGS}}" -o {{.BIN}} ./cmd/cwd
+
+  test:
+    desc: Run backend unit tests
+    cmds:
+      - go test ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run ./...
+
+  run:
+    desc: Run cwd serve with current code (no rebuild of frontend)
+    cmds:
+      - go run ./cmd/cwd serve
+
+  clean:
+    desc: Remove backend build artifacts (does not touch internal/webdist/dist; use `task web:build` to refresh the SPA)
+    cmds:
+      - rm -rf {{.BIN_DIR}}
+
+  # ── Frontend ────────────────────────────────────────────────────────────────
+  web:install:
+    desc: Install frontend dependencies (pnpm install --frozen-lockfile)
+    dir: "{{.WEB_DIR}}"
+    cmds:
+      - pnpm install --frozen-lockfile
+
+  web:build:
+    desc: Build the SPA into internal/webdist/dist/ (re-touches .gitkeep so it survives Vite's emptyOutDir)
+    dir: "{{.WEB_DIR}}"
+    cmds:
+      - pnpm build
+      - touch ../internal/webdist/dist/.gitkeep
+
+  web:dev:
+    desc: Run Vite dev server (proxies /api to localhost:8765)
+    dir: "{{.WEB_DIR}}"
+    cmds:
+      - pnpm dev
+
+  web:typecheck:
+    desc: TypeScript typecheck only (no emit)
+    dir: "{{.WEB_DIR}}"
+    cmds:
+      - pnpm typecheck
+
+  # ── Composite ──────────────────────────────────────────────────────────────
+  build:all:
+    desc: Build frontend then backend (single-binary release shape)
+    cmds:
+      - task: web:build
+      - task: build

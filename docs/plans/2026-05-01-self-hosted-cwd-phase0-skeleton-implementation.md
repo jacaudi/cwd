@@ -2,14 +2,20 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Stand up the empty-but-runnable single-binary skeleton: a Go HTTP server that loads YAML+env config, serves an embedded React+AntD-Pro SPA shell with dark default + 5 routed placeholder pages, exposes `healthz`/`readyz`/`version`/`uiconfig`, and ships with CI + Makefile + lint config. No upstream sources, no cache, no SSE — those are Phases 1–6.
+**Goal:** Stand up the empty-but-runnable single-binary skeleton: a Go HTTP server that loads YAML+env config, serves an embedded React+AntD-Pro SPA shell with dark default + 5 routed placeholder pages, exposes `healthz`/`readyz`/`version`/`uiconfig`, and ships with CI + Taskfile + lint config. No upstream sources, no cache, no SSE — those are Phases 1–6.
+
+> **Execution divergences (2026-05-01)** — applied during the actual subagent-driven build:
+> - Module path is `github.com/jacaudi/cwd` (matches the user's GitHub handle), not `github.com/acaudill/cwd` as drafted.
+> - `Makefile` was replaced with `Taskfile.yml` (go-task) at the user's request. Tasks 11 and 15 below describe the historical Makefile shape; the actual targets shipped under `task` are: `build`, `test`, `lint`, `run`, `clean`, `web:install`, `web:build`, `web:dev`, `web:typecheck`, `build:all`. See `Taskfile.yml` in the repo root for the live definitions.
+> - Task 16's hand-rolled `.github/workflows/ci.yml` was replaced with two workflows (`pr.yml` + `ci.yml`) that consume the user's shared reusable workflows from `jacaudi/github-actions@v0.20.1`. Renovate config extends `jacaudi/renovate-config:base` + `:go`. No Dependabot.
+> - `.golangci.yml` is golangci-lint v2 schema (the system has v2 installed); plan was originally written for v1.
 
 **Architecture:** Three concurrent subsystems are designed (fetchers, cache+store+hub, HTTP API) but Phase 0 only ships the third's skeleton. The frontend uses Vite + React + TS + AntD + AntD Pro Components, built into `internal/webdist/dist/` and embedded via `//go:embed`. The backend wires `cmd/cwd → config → server → chi router → embedded SPA`. Pure Go end-to-end (no CGO).
 
 **Tech Stack:**
 - Backend: Go 1.24, `chi` router, `gopkg.in/yaml.v3`, `log/slog` stdlib
 - Frontend: Node 22 LTS, pnpm, Vite 5, React 18, TypeScript 5, AntD 5, `@ant-design/pro-components`, `react-router-dom` 6
-- Tooling: `golangci-lint` (vet/staticcheck/govet/errcheck), GitHub Actions CI, Makefile
+- Tooling: `golangci-lint` v2 (vet/staticcheck/govet/errcheck), GitHub Actions CI via `jacaudi/github-actions` reusable workflows, Renovate (no Dependabot), `Taskfile.yml` (go-task)
 
 > **For Claude:** REQUIRED EXECUTION WORKFLOW (follow in order):
 > 1. `superpowers:using-git-worktrees` — Isolate work in a dedicated worktree
@@ -49,7 +55,7 @@ LICENSE                                      MIT
 README.md                                    minimal: build/run/config
 .gitignore                                   Go + Node + Vite + IDE + repo cache
 .golangci.yml                                lint config
-Makefile                                     build, test, lint, run, build-web, build-all, clean
+Taskfile.yml                                 build, test, lint, run, web:*, build:all, clean (go-task)
 
 go.mod, go.sum                               module = github.com/jacaudi/cwd
 
@@ -194,7 +200,7 @@ A self-hostable replacement for [https://www.nco.ncep.noaa.gov/status/cwd/](http
 ## Quick start
 
 ```bash
-make build-all     # builds frontend + backend, produces ./cwd
+task build:all     # builds frontend + backend, produces ./bin/cwd
 ./cwd serve        # binds 127.0.0.1:8765 by default
 open http://127.0.0.1:8765
 ```
@@ -206,10 +212,10 @@ Default config path: `$XDG_CONFIG_HOME/cwd/config.yaml` (or `--config <path>`, o
 ## Development
 
 ```bash
-make test          # backend unit tests
-make lint          # golangci-lint
-make run           # backend only (no frontend rebuild)
-make build-web     # frontend only → internal/webdist/dist/
+task test          # backend unit tests
+task lint          # golangci-lint
+task run           # backend only (no frontend rebuild)
+task web:build     # frontend only → internal/webdist/dist/
 ```
 
 ## Documentation
