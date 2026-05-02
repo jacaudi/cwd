@@ -1,0 +1,37 @@
+server:
+  bind: "0.0.0.0:9000"
+  contact: "ops@example.com"
+  log_level: "debug"
+  log_format: "text"
+
+store:
+  path: "/tmp/cwd.db"
+  retention_days: 7
+
+cache:
+  image_dir: "/tmp/cwd-img"
+  image_max_bytes: 1048576
+
+sources:
+  nws_alerts:     { interval: "30s", enabled: true }
+  swpc_scales:    { interval: "60s", enabled: true }
+  swpc_alerts:    { interval: "60s", enabled: true }
+  usgs_quakes:    { interval: "60s", enabled: true }
+  usgs_volcanoes: { interval: "5m",  enabled: true }
+
+images:
+  default_mode: "lazy"
+  prewarm: []
+
+derived:
+  thresholds:
+    swpc_alert_window_hours: 24
+    swpc_alert_products: [K08A, K09A, P12A, P13A]
+    region_filter:
+      ugcs: []
+      wfos: []
+
+ui:
+  default_theme: "dark"
+  default_landing: "/"
+  enable_history: true

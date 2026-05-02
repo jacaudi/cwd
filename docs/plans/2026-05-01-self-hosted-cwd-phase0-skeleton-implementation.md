@@ -2,14 +2,20 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Stand up the empty-but-runnable single-binary skeleton: a Go HTTP server that loads YAML+env config, serves an embedded React+AntD-Pro SPA shell with dark default + 5 routed placeholder pages, exposes `healthz`/`readyz`/`version`/`uiconfig`, and ships with CI + Makefile + lint config. No upstream sources, no cache, no SSE — those are Phases 1–6.
+**Goal:** Stand up the empty-but-runnable single-binary skeleton: a Go HTTP server that loads YAML+env config, serves an embedded React+AntD-Pro SPA shell with dark default + 5 routed placeholder pages, exposes `healthz`/`readyz`/`version`/`uiconfig`, and ships with CI + Taskfile + lint config. No upstream sources, no cache, no SSE — those are Phases 1–6.
+
+> **Execution divergences (2026-05-01)** — applied during the actual subagent-driven build:
+> - Module path is `github.com/jacaudi/cwd` (matches the user's GitHub handle), not `github.com/acaudill/cwd` as drafted.
+> - `Makefile` was replaced with `Taskfile.yml` (go-task) at the user's request. Tasks 11 and 15 below describe the historical Makefile shape; the actual targets shipped under `task` are: `build`, `test`, `lint`, `run`, `clean`, `web:install`, `web:build`, `web:dev`, `web:typecheck`, `build:all`. See `Taskfile.yml` in the repo root for the live definitions.
+> - Task 16's hand-rolled `.github/workflows/ci.yml` was replaced with two workflows (`pr.yml` + `ci.yml`) that consume the user's shared reusable workflows from `jacaudi/github-actions@v0.20.1`. Renovate config extends `jacaudi/renovate-config:base` + `:go`. No Dependabot.
+> - `.golangci.yml` is golangci-lint v2 schema (the system has v2 installed); plan was originally written for v1.
 
 **Architecture:** Three concurrent subsystems are designed (fetchers, cache+store+hub, HTTP API) but Phase 0 only ships the third's skeleton. The frontend uses Vite + React + TS + AntD + AntD Pro Components, built into `internal/webdist/dist/` and embedded via `//go:embed`. The backend wires `cmd/cwd → config → server → chi router → embedded SPA`. Pure Go end-to-end (no CGO).
 
 **Tech Stack:**
 - Backend: Go 1.24, `chi` router, `gopkg.in/yaml.v3`, `log/slog` stdlib
 - Frontend: Node 22 LTS, pnpm, Vite 5, React 18, TypeScript 5, AntD 5, `@ant-design/pro-components`, `react-router-dom` 6
-- Tooling: `golangci-lint` (vet/staticcheck/govet/errcheck), GitHub Actions CI, Makefile
+- Tooling: `golangci-lint` v2 (vet/staticcheck/govet/errcheck), GitHub Actions CI via `jacaudi/github-actions` reusable workflows, Renovate (no Dependabot), `Taskfile.yml` (go-task)
 
 > **For Claude:** REQUIRED EXECUTION WORKFLOW (follow in order):
 > 1. `superpowers:using-git-worktrees` — Isolate work in a dedicated worktree
@@ -30,7 +36,7 @@ The design (§13) listed these as deferred to scaffold time. The plan defaults a
 
 | Item | Default | Override how |
 |---|---|---|
-| Go module path | `github.com/acaudill/cwd` | Edit `go mod init` argument in Task 2 |
+| Go module path | `github.com/jacaudi/cwd` | Edit `go mod init` argument in Task 2 |
 | License | MIT | Replace `LICENSE` content in Task 1 |
 | CI provider | GitHub Actions | Swap `.github/workflows/` for `.gitlab-ci.yml` in Task 16 |
 | Repo name on remote | `cwd` (singular, the binary name) | Adjust module path + README accordingly |
@@ -49,9 +55,9 @@ LICENSE                                      MIT
 README.md                                    minimal: build/run/config
 .gitignore                                   Go + Node + Vite + IDE + repo cache
 .golangci.yml                                lint config
-Makefile                                     build, test, lint, run, build-web, build-all, clean
+Taskfile.yml                                 build, test, lint, run, web:*, build:all, clean (go-task)
 
-go.mod, go.sum                               module = github.com/acaudill/cwd
+go.mod, go.sum                               module = github.com/jacaudi/cwd
 
 cmd/cwd/main.go                              entry: flags → config.Load → server.Run
 
@@ -194,7 +200,7 @@ A self-hostable replacement for [https://www.nco.ncep.noaa.gov/status/cwd/](http
 ## Quick start
 
 ```bash
-make build-all     # builds frontend + backend, produces ./cwd
+task build:all     # builds frontend + backend, produces ./bin/cwd
 ./cwd serve        # binds 127.0.0.1:8765 by default
 open http://127.0.0.1:8765
 ```
@@ -206,10 +212,10 @@ Default config path: `$XDG_CONFIG_HOME/cwd/config.yaml` (or `--config <path>`, o
 ## Development
 
 ```bash
-make test          # backend unit tests
-make lint          # golangci-lint
-make run           # backend only (no frontend rebuild)
-make build-web     # frontend only → internal/webdist/dist/
+task test          # backend unit tests
+task lint          # golangci-lint
+task run           # backend only (no frontend rebuild)
+task web:build     # frontend only → internal/webdist/dist/
 ```
 
 ## Documentation
@@ -240,10 +246,10 @@ Expected: clean working tree after commit. `git log --oneline` shows one commit.
 - [ ] **Step 2.1: Initialize Go module**
 
 ```bash
-go mod init github.com/acaudill/cwd
+go mod init github.com/jacaudi/cwd
 ```
 
-Expected: `go.mod` created with `module github.com/acaudill/cwd` and `go 1.24`.
+Expected: `go.mod` created with `module github.com/jacaudi/cwd` and `go 1.24`.
 
 - [ ] **Step 2.2: Add chi + yaml.v3 deps (no code yet — just lock the versions)**
 
@@ -787,9 +793,9 @@ git commit -m "feat(config): YAML+env config with defaults, validation, and dark
 package version
 
 // These are overridden at build time, e.g.:
-//   go build -ldflags="-X github.com/acaudill/cwd/internal/version.Version=v0.1.0 \
-//     -X github.com/acaudill/cwd/internal/version.Commit=$(git rev-parse --short HEAD) \
-//     -X github.com/acaudill/cwd/internal/version.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+//   go build -ldflags="-X github.com/jacaudi/cwd/internal/version.Version=v0.1.0 \
+//     -X github.com/jacaudi/cwd/internal/version.Commit=$(git rev-parse --short HEAD) \
+//     -X github.com/jacaudi/cwd/internal/version.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 var (
 	Version = "dev"
 	Commit  = "unknown"
@@ -933,7 +939,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/acaudill/cwd/internal/version"
+	"github.com/jacaudi/cwd/internal/version"
 )
 
 func TestVersionReturnsBuildInfo(t *testing.T) {
@@ -1009,7 +1015,7 @@ import (
 	"net/http"
 	"runtime"
 
-	"github.com/acaudill/cwd/internal/version"
+	"github.com/jacaudi/cwd/internal/version"
 )
 
 // Version returns a handler that emits the build-time identifiers as JSON.
@@ -1061,7 +1067,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/acaudill/cwd/internal/config"
+	"github.com/jacaudi/cwd/internal/config"
 )
 
 func TestUIConfigSubsetsTheConfig(t *testing.T) {
@@ -1117,7 +1123,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/acaudill/cwd/internal/config"
+	"github.com/jacaudi/cwd/internal/config"
 )
 
 // UIConfig returns the subset of the server's config that's safe to expose to the SPA.
@@ -1176,7 +1182,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/acaudill/cwd/internal/config"
+	"github.com/jacaudi/cwd/internal/config"
 )
 
 func TestRouterServesAllEndpoints(t *testing.T) {
@@ -1254,8 +1260,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimid "github.com/go-chi/chi/v5/middleware"
 
-	"github.com/acaudill/cwd/internal/config"
-	"github.com/acaudill/cwd/internal/webdist"
+	"github.com/jacaudi/cwd/internal/config"
+	"github.com/jacaudi/cwd/internal/webdist"
 )
 
 // NewRouter assembles the Phase 0 HTTP surface:
@@ -1362,7 +1368,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/acaudill/cwd/internal/config"
+	"github.com/jacaudi/cwd/internal/config"
 )
 
 func TestRunStartsAndShutsDownGracefully(t *testing.T) {
@@ -1424,8 +1430,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/acaudill/cwd/internal/api"
-	"github.com/acaudill/cwd/internal/config"
+	"github.com/jacaudi/cwd/internal/api"
+	"github.com/jacaudi/cwd/internal/config"
 )
 
 // Run binds the configured address and serves until ctx is canceled.
@@ -1519,9 +1525,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/acaudill/cwd/internal/config"
-	"github.com/acaudill/cwd/internal/server"
-	"github.com/acaudill/cwd/internal/version"
+	"github.com/jacaudi/cwd/internal/config"
+	"github.com/jacaudi/cwd/internal/server"
+	"github.com/jacaudi/cwd/internal/version"
 )
 
 func main() {
@@ -1685,7 +1691,7 @@ git commit -m "feat(cmd): cwd serve|version|help entry point"
 GO          ?= go
 BIN_DIR     ?= bin
 BIN          := $(BIN_DIR)/cwd
-PKG          := github.com/acaudill/cwd
+PKG          := github.com/jacaudi/cwd
 
 VERSION     ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT      ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -2592,7 +2598,7 @@ No gaps for Phase 0 scope. All deferred items are explicitly out of Phase 0 per 
 **2. Placeholder scan:** No "TBD"/"TODO"/"implement later"/"add appropriate X". Every code step shows the actual code. Every command step shows the exact command and expected output.
 
 **3. Type/symbol consistency:**
-- Module path used consistently as `github.com/acaudill/cwd` across `go mod init`, all imports in tests, Makefile `PKG`, ldflags, CI.
+- Module path used consistently as `github.com/jacaudi/cwd` across `go mod init`, all imports in tests, Makefile `PKG`, ldflags, CI.
 - `config.Config` field names (`Server.Bind`, `UI.DefaultTheme`, etc.) match between definition (Task 3), tests (Task 3), `UIConfig` handler (Task 7), `NewRouter` signature (Task 8), `server.Run` signature (Task 9), and `cmd/cwd/main.go` (Task 10).
 - `version.Info` shape matches between `internal/version/version.go` (Task 4), `Version()` handler (Task 6), and the frontend `VersionInfo` interface (Task 13).
 - UIConfig JSON keys (`defaultTheme`, `defaultLanding`, `enableHistory`) match between Go handler (Task 7), Go test (Task 7), and frontend type (Task 13).

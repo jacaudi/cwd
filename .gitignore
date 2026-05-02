@@ -1,18 +1,37 @@
-# OS / IDE
+# Binaries
+/cwd
+/dist/
+
+# Go
+*.exe
+*.test
+*.out
+/bin/
+/coverage.out
+/coverage.html
+
+# Node / Vite
+web/node_modules/
+web/dist/
+web/.pnpm-store/
+
+# Embedded SPA build output (regenerated; never commit)
+internal/webdist/dist/*
+!internal/webdist/dist/.gitkeep
+
+# IDE / OS
 .DS_Store
 .idea/
 .vscode/
 *.swp
 
-# Tooling
-.claude/
-
 # Worktrees (project-local isolated workspaces)
 .worktrees/
 worktrees/
 
+# Tooling
+.claude/
+
 # Local config & state
 *.local.yaml
 config.local.yaml
-
-# Phase 0 will expand this with Go and Node entries.

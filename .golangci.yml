@@ -1,0 +1,34 @@
+version: "2"
+
+run:
+  timeout: 5m
+  go: "1.24"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - revive
+  settings:
+    revive:
+      rules:
+        - name: var-naming
+        - name: exported
+        - name: unused-parameter
+          disabled: true
+  exclusions:
+    paths:
+      - internal/webdist/dist
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
