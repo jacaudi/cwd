@@ -40,16 +40,18 @@ var staticExtensions = map[string]struct{}{
 // RouterDeps wires the HTTP surface to the rest of the server.
 // Each handler is constructed in server.Run() and passed in here.
 type RouterDeps struct {
-	Config         *config.Config
-	Ready          func() bool
-	SourcesHandler http.Handler
-	// Snapshot, History, Stream — added in Tasks 9–11
+	Config          *config.Config
+	Ready           func() bool
+	SourcesHandler  http.Handler
+	SnapshotHandler http.Handler
+	// History, Stream — added in Tasks 10–11
 }
 
 // NewRouter assembles the HTTP surface from the given dependencies:
 //   - /healthz, /readyz             — liveness + readiness probes
 //   - /api/version, /api/uiconfig   — JSON endpoints
 //   - /api/sources                  — per-source fetcher health (when SourcesHandler is set)
+//   - /api/snapshot                 — latest cache snapshot with region filter (when SnapshotHandler is set)
 //   - /                             — embedded SPA (with SPA-fallback for client-side routes)
 //
 // /api/* paths that don't match return 404 (no SPA fallback for the API namespace).
@@ -67,6 +69,9 @@ func NewRouter(deps RouterDeps) http.Handler {
 		r.Get("/uiconfig", UIConfig(deps.Config))
 		if deps.SourcesHandler != nil {
 			r.Method(http.MethodGet, "/sources", deps.SourcesHandler)
+		}
+		if deps.SnapshotHandler != nil {
+			r.Method(http.MethodGet, "/snapshot", deps.SnapshotHandler)
 		}
 	})
 
