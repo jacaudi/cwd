@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimid "github.com/go-chi/chi/v5/middleware"
@@ -11,6 +12,24 @@ import (
 	"github.com/jacaudi/cwd/internal/config"
 	"github.com/jacaudi/cwd/internal/webdist"
 )
+
+// jsonRouteTimeout is the WriteTimeout applied to every JSON / probe endpoint.
+// SSE (/api/stream) is explicitly excluded — see NewRouter.
+const jsonRouteTimeout = 5 * time.Second
+
+// WithJSONTimeout wraps h with http.TimeoutHandler at the given duration.
+// Apply to any JSON endpoint; never apply to SSE (the timeout would kill the stream).
+// The duration is parameterized so tests can use a short value to trigger the timeout
+// without relying on the 5-second production default.
+func WithJSONTimeout(d time.Duration, h http.Handler) http.Handler {
+	return http.TimeoutHandler(h, d, `{"error":"upstream timeout"}`)
+}
+
+// jsonTimeoutMiddleware is the chi-compatible middleware adapter for WithJSONTimeout.
+// It uses the production jsonRouteTimeout constant.
+func jsonTimeoutMiddleware(next http.Handler) http.Handler {
+	return WithJSONTimeout(jsonRouteTimeout, next)
+}
 
 // staticExtensions are file extensions considered "asset-like". A request for
 // any path bearing one of these extensions that misses the embedded FS returns
@@ -37,25 +56,68 @@ var staticExtensions = map[string]struct{}{
 	".xml":   {},
 }
 
-// NewRouter assembles the Phase 0 HTTP surface:
+// RouterDeps wires the HTTP surface to the rest of the server.
+// Each handler is constructed in server.Run() and passed in here.
+type RouterDeps struct {
+	Config          *config.Config
+	Ready           func() bool
+	SourcesHandler  http.Handler
+	SnapshotHandler http.Handler
+	HistoryHandler  http.Handler
+	StreamHandler   http.Handler
+}
+
+// NewRouter assembles the HTTP surface from the given dependencies:
 //   - /healthz, /readyz             — liveness + readiness probes
 //   - /api/version, /api/uiconfig   — JSON endpoints
+//   - /api/sources                  — per-source fetcher health (when SourcesHandler is set)
+//   - /api/snapshot                 — latest cache snapshot with region filter (when SnapshotHandler is set)
+//   - /api/history                  — nearest-prior historical snapshot at ?at=RFC3339 (when HistoryHandler is set)
+//   - /api/stream                   — SSE fan-out of live cache updates (when StreamHandler is set)
 //   - /                             — embedded SPA (with SPA-fallback for client-side routes)
 //
+// WriteTimeout policy (Phase 0 reviewer carryover):
+//   - All JSON/probe endpoints are wrapped in a 5-second http.TimeoutHandler via
+//     jsonTimeoutMiddleware. A slow upstream causes a 503 with {"error":"upstream timeout"}.
+//   - /api/stream is registered OUTSIDE the timeout group — applying a write timeout
+//     to an SSE connection would kill long-lived streams.
+//
 // /api/* paths that don't match return 404 (no SPA fallback for the API namespace).
-func NewRouter(cfg *config.Config, ready func() bool) http.Handler {
+func NewRouter(deps RouterDeps) http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimid.RequestID)
 	r.Use(chimid.RealIP)
 	r.Use(chimid.Recoverer)
 
-	r.Get("/healthz", Healthz())
-	r.Get("/readyz", Readyz(ready))
-
-	r.Route("/api", func(r chi.Router) {
-		r.Get("/version", Version())
-		r.Get("/uiconfig", UIConfig(cfg))
+	// Per-route WriteTimeout policy:
+	//   - JSON / probe endpoints: 5 s timeout via http.TimeoutHandler (inner group).
+	//   - /api/stream: NO timeout — registered outside this group so long-lived SSE
+	//     connections are never interrupted by the middleware.
+	r.Group(func(r chi.Router) {
+		r.Use(jsonTimeoutMiddleware)
+		r.Method(http.MethodGet, "/healthz", Healthz())
+		r.Method(http.MethodHead, "/healthz", Healthz())
+		r.Method(http.MethodGet, "/readyz", Readyz(deps.Ready))
+		r.Method(http.MethodHead, "/readyz", Readyz(deps.Ready))
+		r.Route("/api", func(r chi.Router) {
+			r.Get("/version", Version())
+			r.Get("/uiconfig", UIConfig(deps.Config))
+			if deps.SourcesHandler != nil {
+				r.Method(http.MethodGet, "/sources", deps.SourcesHandler)
+			}
+			if deps.SnapshotHandler != nil {
+				r.Method(http.MethodGet, "/snapshot", deps.SnapshotHandler)
+			}
+			if deps.HistoryHandler != nil {
+				r.Method(http.MethodGet, "/history", deps.HistoryHandler)
+			}
+		})
 	})
+
+	// SSE registered OUTSIDE the timeout group — no WriteTimeout on streaming responses.
+	if deps.StreamHandler != nil {
+		r.Method(http.MethodGet, "/api/stream", deps.StreamHandler)
+	}
 
 	r.NotFound(spaFallback())
 	return r

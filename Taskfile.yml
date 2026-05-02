@@ -80,6 +80,12 @@ tasks:
     cmds:
       - pnpm dev
 
+  web:test:
+    desc: Run frontend Vitest suite
+    dir: "{{.WEB_DIR}}"
+    cmds:
+      - pnpm exec vitest run
+
   web:typecheck:
     desc: TypeScript typecheck only (no emit)
     dir: "{{.WEB_DIR}}"
@@ -92,3 +98,20 @@ tasks:
     cmds:
       - task: web:build
       - task: build
+
+  smoke:
+    desc: Boot against real api.weather.gov for ~5 minutes; report /api/sources
+    deps: [build:all]
+    cmds:
+      - |
+        ./{{.BIN}} serve &
+        PID=$!
+        trap "kill $PID 2>/dev/null || true" EXIT
+        echo "PID=$PID; sleeping 60s for first fetch"
+        sleep 60
+        echo "---- /api/sources ----"
+        curl -sS http://127.0.0.1:8765/api/sources | jq .
+        echo "---- /api/snapshot.sources.nws_alerts.payload | length ----"
+        curl -sS http://127.0.0.1:8765/api/snapshot | jq '.sources.nws_alerts.payload | length'
+        echo "---- holding for 4 more minutes (Ctrl-C to stop early) ----"
+        sleep 240

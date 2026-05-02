@@ -1,0 +1,26 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.synthetic-tsu",
+      "type": "Feature",
+      "geometry": null,
+      "properties": {
+        "id": "urn:oid:2.49.0.1.840.synthetic-tsu",
+        "areaDesc": "Coastal Areas of Northern California; Coastal Areas of Southern Oregon",
+        "geocode": {"UGC": ["CAZ505","ORZ021"], "SAME": ["006015","041011"]},
+        "sent":      "2026-05-02T11:00:00+00:00",
+        "effective": "2026-05-02T11:00:00+00:00",
+        "expires":   "2026-05-02T17:00:00+00:00",
+        "severity":  "Extreme",
+        "event":     "Tsunami Warning",
+        "headline":  "Tsunami Warning issued for coastal Northern California",
+        "senderName":"NWS National Tsunami Warning Center",
+        "parameters": {
+          "AWIPSidentifier": ["TSUWCA"],
+          "eventTrackingNumber": ["0001"]
+        }
+      }
+    }
+  ]
+}

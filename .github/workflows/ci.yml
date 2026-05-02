@@ -23,7 +23,7 @@ jobs:
       contents: read
     with:
       go: true
-      go-version: ${{ vars.GO_VERSION || '1.24' }}
+      go-version: ${{ vars.GO_VERSION || '1.26' }}
 
   lint-config:
     name: Lint Config
@@ -41,7 +41,7 @@ jobs:
       contents: read
     with:
       test-framework: go
-      go-version: ${{ vars.GO_VERSION || '1.24' }}
+      go-version: ${{ vars.GO_VERSION || '1.26' }}
       coverage: true
       coverage-threshold: ${{ fromJSON(vars.COVERAGE_THRESHOLD || '0') }}
       artifact-name: test-results-go
@@ -63,5 +63,5 @@ jobs:
         corepack prepare pnpm@9.12.2 --activate
         cd web && pnpm install --frozen-lockfile
       test-command: |
-        pnpm typecheck && pnpm build
+        pnpm typecheck && pnpm build && pnpm test
       artifact-name: test-results-web

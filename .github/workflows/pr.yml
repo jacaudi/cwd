@@ -18,7 +18,7 @@ jobs:
       contents: read
     with:
       go: true
-      go-version: ${{ vars.GO_VERSION || '1.24' }}
+      go-version: ${{ vars.GO_VERSION || '1.26' }}
 
   # ── Lint config files (YAML + JSON) ───────────────────────────────────────
   lint-config:
@@ -38,15 +38,14 @@ jobs:
       contents: read
     with:
       test-framework: go
-      go-version: ${{ vars.GO_VERSION || '1.24' }}
+      go-version: ${{ vars.GO_VERSION || '1.26' }}
       coverage: true
       coverage-threshold: ${{ fromJSON(vars.COVERAGE_THRESHOLD || '0') }}
       # Embed placeholder is committed so go build/test does not require
       # the SPA to be built first.
       artifact-name: test-results-go
 
-  # ── Test Web (typecheck + build via pnpm) ─────────────────────────────────
-  # No Vitest suite yet (Phase 0); typecheck + build is the green-bar contract.
+  # ── Test Web (typecheck + build + vitest) ─────────────────────────────────
   test-web:
     name: Test Web
     uses: jacaudi/github-actions/.github/workflows/component-test.yml@v0.20.1
@@ -64,5 +63,5 @@ jobs:
         corepack prepare pnpm@9.12.2 --activate
         cd web && pnpm install --frozen-lockfile
       test-command: |
-        pnpm typecheck && pnpm build
+        pnpm typecheck && pnpm build && pnpm test
       artifact-name: test-results-web

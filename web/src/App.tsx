@@ -15,6 +15,7 @@ import { api } from "./api/client";
 import type { ThemeMode, UIConfig, VersionInfo } from "./api/types";
 import { buildThemeConfig, persistTheme } from "./theme";
 import SettingsDrawer from "./components/SettingsDrawer";
+import { SourceHealthIndicator } from "./components/SourceHealthIndicator";
 
 import Overview from "./pages/Overview";
 import Hazards from "./pages/Hazards";
@@ -95,10 +96,15 @@ export default function App({ initialThemeMode }: AppProps) {
           </Space>
         )}
         footerRender={() => (
-          <div style={{ textAlign: "center", padding: 8, opacity: 0.65 }}>
-            cwd {serverVersion?.version ?? "…"} ·{" "}
-            UI default: <code>{uiConfig?.defaultTheme ?? "…"}</code> ·{" "}
-            <a href="/api/version">version</a> · <a href="/api/uiconfig">uiconfig</a>
+          <div style={{ textAlign: "center", padding: 8, opacity: 0.85 }}>
+            <div style={{ marginBottom: 4 }}>
+              <SourceHealthIndicator />
+            </div>
+            <div style={{ opacity: 0.65 }}>
+              cwd {serverVersion?.version ?? "…"} ·{" "}
+              UI default: <code>{uiConfig?.defaultTheme ?? "…"}</code> ·{" "}
+              <a href="/api/version">version</a> · <a href="/api/uiconfig">uiconfig</a>
+            </div>
           </div>
         )}
       >
