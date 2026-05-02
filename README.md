@@ -12,7 +12,7 @@ task build:all      # builds frontend + backend, produces ./bin/cwd
 open http://127.0.0.1:8765
 ```
 
-Requires [`task`](https://taskfile.dev), Go 1.26+, Node 22+, and pnpm 9+.
+Requires [`task`](https://taskfile.dev), Go 1.26+, Node 24 LTS, and pnpm 9+.
 
 ## Configuration
 
