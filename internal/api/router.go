@@ -64,8 +64,10 @@ func NewRouter(deps RouterDeps) http.Handler {
 	r.Use(chimid.RealIP)
 	r.Use(chimid.Recoverer)
 
-	r.Get("/healthz", Healthz())
-	r.Get("/readyz", Readyz(deps.Ready))
+	r.Method(http.MethodGet, "/healthz", Healthz())
+	r.Method(http.MethodHead, "/healthz", Healthz())
+	r.Method(http.MethodGet, "/readyz", Readyz(deps.Ready))
+	r.Method(http.MethodHead, "/readyz", Readyz(deps.Ready))
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/version", Version())
