@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -47,8 +48,15 @@ type CacheConfig struct {
 // SourceConfig holds per-source polling settings.
 type SourceConfig struct {
 	Interval time.Duration `yaml:"interval"`
-	Enabled  bool          `yaml:"enabled"`
+	Enabled  *bool         `yaml:"enabled"`
 }
+
+// IsEnabled reports whether this source is enabled.
+// A nil Enabled pointer means "not explicitly set" and defaults to true.
+func (s SourceConfig) IsEnabled() bool { return s.Enabled == nil || *s.Enabled }
+
+// boolPtr returns a pointer to b, useful for setting *bool fields in struct literals.
+func boolPtr(b bool) *bool { return &b }
 
 // ImagesConfig holds image loading settings.
 type ImagesConfig struct {
@@ -126,11 +134,11 @@ func defaults() *Config {
 			ImageMaxBytes: 524_288_000,
 		},
 		Sources: map[string]SourceConfig{
-			"nws_alerts":     {Interval: 30 * time.Second, Enabled: true},
-			"swpc_scales":    {Interval: 60 * time.Second, Enabled: true},
-			"swpc_alerts":    {Interval: 60 * time.Second, Enabled: true},
-			"usgs_quakes":    {Interval: 60 * time.Second, Enabled: true},
-			"usgs_volcanoes": {Interval: 5 * time.Minute, Enabled: true},
+			"nws_alerts":     {Interval: 30 * time.Second, Enabled: boolPtr(true)},
+			"swpc_scales":    {Interval: 60 * time.Second, Enabled: boolPtr(true)},
+			"swpc_alerts":    {Interval: 60 * time.Second, Enabled: boolPtr(true)},
+			"usgs_quakes":    {Interval: 60 * time.Second, Enabled: boolPtr(true)},
+			"usgs_volcanoes": {Interval: 5 * time.Minute, Enabled: boolPtr(true)},
 		},
 		Images: ImagesConfig{DefaultMode: "lazy"},
 		Derived: DerivedConfig{
@@ -161,6 +169,9 @@ func mergeSourceDefaults(cfg *Config) {
 		}
 		if s.Interval == 0 {
 			s.Interval = d.Interval
+		}
+		if s.Enabled == nil {
+			s.Enabled = d.Enabled
 		}
 		cfg.Sources[name] = s
 	}
@@ -233,20 +244,20 @@ func validate(cfg *Config) error {
 
 func xdgState(rel string) string {
 	if v := os.Getenv("XDG_STATE_HOME"); v != "" {
-		return v + "/" + rel
+		return filepath.Join(v, rel)
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		return home + "/.local/state/" + rel
+		return filepath.Join(home, ".local/state", rel)
 	}
 	return "./" + rel
 }
 
 func xdgCache(rel string) string {
 	if v := os.Getenv("XDG_CACHE_HOME"); v != "" {
-		return v + "/" + rel
+		return filepath.Join(v, rel)
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		return home + "/.cache/" + rel
+		return filepath.Join(home, ".cache", rel)
 	}
 	return "./" + rel
 }

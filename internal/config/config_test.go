@@ -111,3 +111,53 @@ func TestMissingContactWarnsButLoads(t *testing.T) {
 		t.Error("MissingContact() = false, want true")
 	}
 }
+
+func TestPartialSourceOverridePreservesEnabled(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "partial.yaml")
+	if err := os.WriteFile(path, []byte("server:\n  contact: x\nsources:\n  nws_alerts:\n    interval: 15s\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.Sources["nws_alerts"].Interval; got != 15*time.Second {
+		t.Errorf("nws_alerts.Interval = %s, want 15s", got)
+	}
+	if !cfg.Sources["nws_alerts"].IsEnabled() {
+		t.Error("nws_alerts: partial override silently disabled the source")
+	}
+}
+
+func TestExplicitlyDisabledSourceStaysDisabled(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "off.yaml")
+	if err := os.WriteFile(path, []byte("server:\n  contact: x\nsources:\n  nws_alerts:\n    enabled: false\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Sources["nws_alerts"].IsEnabled() {
+		t.Error("nws_alerts: explicit disable was not honored")
+	}
+}
+
+func TestXDGPathsHandleTrailingSlash(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", "/tmp/with-slash/")
+	t.Setenv("XDG_CACHE_HOME", "/tmp/cache-with-slash/")
+	cfg, err := Load("") // defaults-only path
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	wantStore := filepath.Join("/tmp/with-slash", "cwd/cwd.db")
+	if cfg.Store.Path != wantStore {
+		t.Errorf("Store.Path = %q, want %q", cfg.Store.Path, wantStore)
+	}
+	wantCache := filepath.Join("/tmp/cache-with-slash", "cwd/img")
+	if cfg.Cache.ImageDir != wantCache {
+		t.Errorf("Cache.ImageDir = %q, want %q", cfg.Cache.ImageDir, wantCache)
+	}
+}
