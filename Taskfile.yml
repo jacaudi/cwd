@@ -80,6 +80,12 @@ tasks:
     cmds:
       - pnpm dev
 
+  web:test:
+    desc: Run frontend Vitest suite
+    dir: "{{.WEB_DIR}}"
+    cmds:
+      - pnpm exec vitest run
+
   web:typecheck:
     desc: TypeScript typecheck only (no emit)
     dir: "{{.WEB_DIR}}"
