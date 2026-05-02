@@ -201,3 +201,93 @@ func TestNWSAlerts_FetchHTTP(t *testing.T) {
 		t.Errorf("marshal alerts: %v", err)
 	}
 }
+
+func TestNWSAlerts_ParseMalformedJSON(t *testing.T) {
+	logger, _ := newWarnCapturingLogger()
+	if _, err := ParseNWSAlerts([]byte("not json"), logger); err == nil {
+		t.Fatalf("want error for malformed JSON, got nil")
+	}
+}
+
+func TestNWSAlerts_ParseEmptyBody(t *testing.T) {
+	logger, _ := newWarnCapturingLogger()
+	if _, err := ParseNWSAlerts([]byte{}, logger); err == nil {
+		t.Fatalf("want error for empty body, got nil")
+	}
+}
+
+func TestNWSAlerts_ParseMissingParameters(t *testing.T) {
+	// Feature with no `parameters` key at all — must not panic; AWIPS and VTEC
+	// fields should be empty strings; result should be a single CatUnknown alert
+	// (no canary log because severity is Minor, not Severe/Extreme).
+	body := []byte(`{"type":"FeatureCollection","features":[{
+		"id":"https://api.weather.gov/alerts/urn:oid:test-noparam",
+		"type":"Feature","geometry":null,
+		"properties":{
+			"id":"urn:oid:test-noparam",
+			"areaDesc":"Test Area",
+			"sent":"2026-05-02T12:00:00+00:00",
+			"effective":"2026-05-02T12:00:00+00:00",
+			"expires":"2026-05-02T18:00:00+00:00",
+			"severity":"Minor",
+			"event":"Special Weather Statement",
+			"headline":"Test",
+			"senderName":"NWS Test"
+		}
+	}]}`)
+	logger, buf := newWarnCapturingLogger()
+	got, err := ParseNWSAlerts(body, logger)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("want 1 alert, got %d", len(got))
+	}
+	if got[0].AWIPS != "" {
+		t.Errorf("want AWIPS=\"\" with no parameters, got %q", got[0].AWIPS)
+	}
+	if got[0].VTECEtn != "" {
+		t.Errorf("want VTECEtn=\"\" with no parameters, got %q", got[0].VTECEtn)
+	}
+	if got[0].Category != CatUnknown {
+		t.Errorf("want CatUnknown with no parameters, got %q", got[0].Category)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("Minor-severity unmapped should not log canary, got: %s", buf.String())
+	}
+}
+
+func TestNWSAlerts_AreasEmptyMarshalsAsArray(t *testing.T) {
+	// Lock the wire-shape contract: an alert with empty areaDesc must marshal
+	// areas as `[]`, not `null` — TS frontend types `Alert.areas: string[]`.
+	body := []byte(`{"type":"FeatureCollection","features":[{
+		"id":"https://api.weather.gov/alerts/urn:oid:test-noareas",
+		"type":"Feature","geometry":null,
+		"properties":{
+			"id":"urn:oid:test-noareas",
+			"areaDesc":"",
+			"sent":"2026-05-02T12:00:00+00:00",
+			"effective":"2026-05-02T12:00:00+00:00",
+			"expires":"2026-05-02T18:00:00+00:00",
+			"severity":"Minor",
+			"event":"Special Weather Statement",
+			"headline":"Test",
+			"senderName":"NWS Test"
+		}
+	}]}`)
+	logger, _ := newWarnCapturingLogger()
+	got, err := ParseNWSAlerts(body, logger)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("want 1 alert, got %d", len(got))
+	}
+	b, err := json.Marshal(got[0])
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !bytes.Contains(b, []byte(`"areas":[]`)) {
+		t.Errorf("want areas:[] in JSON, got: %s", b)
+	}
+}

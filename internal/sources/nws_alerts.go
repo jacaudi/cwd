@@ -222,7 +222,7 @@ func ParseNWSAlerts(body []byte, logger *slog.Logger) ([]Alert, error) {
 
 func splitAreas(s string) []string {
 	if s == "" {
-		return nil
+		return []string{}
 	}
 	parts := strings.Split(s, ";")
 	out := make([]string, 0, len(parts))
@@ -261,7 +261,9 @@ func (n *NWSAlerts) Name() string { return NWSAlertsName }
 // Interval returns the polling interval for this source.
 func (n *NWSAlerts) Interval() time.Duration { return n.interval }
 
-// SetInterval overrides the default polling interval (wired for Task 14 config env walker).
+// SetInterval updates the polling interval. Must be called before the fetcher
+// loop begins (i.e., during boot, by the config walker in Task 14); not safe
+// for concurrent use with Interval() or Fetch() once the fetcher is running.
 func (n *NWSAlerts) SetInterval(d time.Duration) { n.interval = d }
 
 // Fetch retrieves the current NWS active alerts and returns parsed results with
