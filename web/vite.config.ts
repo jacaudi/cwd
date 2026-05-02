@@ -11,7 +11,11 @@ export default defineConfig({
     // Embed target — Go side reads from internal/webdist/dist/
     outDir: path.resolve(__dirname, "../internal/webdist/dist"),
     emptyOutDir: true,
-    sourcemap: true,
+    // No source maps in the embedded production bundle — keeps binary size
+    // down and avoids serving original TypeScript through the SPA. Set to
+    // 'hidden' or true if you need them locally, but rebuild before
+    // committing so dist/ stays clean.
+    sourcemap: false,
     chunkSizeWarningLimit: 1500, // AntD Pro is chonky; expected
   },
   server: {
