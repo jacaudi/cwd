@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -206,5 +208,31 @@ func TestLoadWithLogger_NilLoggerFallsBack(t *testing.T) {
 	}
 	if cfg == nil {
 		t.Fatal("expected non-nil config")
+	}
+}
+
+func TestRegionFilter_DropsInvalid(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	cfg := &Config{
+		Derived: DerivedConfig{
+			Thresholds: ThresholdsConfig{
+				RegionFilter: RegionFilter{
+					UGCs: []string{"VAC059", "INVALID", "CAZ505", "ab1234"},
+					WFOs: []string{"LWX", "FOO99", "OAX"},
+				},
+			},
+		},
+	}
+	validateRegionFilter(cfg, logger)
+	if !slices.Equal(cfg.Derived.Thresholds.RegionFilter.UGCs, []string{"VAC059", "CAZ505"}) {
+		t.Errorf("UGCs after validate: %v", cfg.Derived.Thresholds.RegionFilter.UGCs)
+	}
+	if !slices.Equal(cfg.Derived.Thresholds.RegionFilter.WFOs, []string{"LWX", "OAX"}) {
+		t.Errorf("WFOs after validate: %v", cfg.Derived.Thresholds.RegionFilter.WFOs)
+	}
+	s := buf.String()
+	if !strings.Contains(s, "INVALID") || !strings.Contains(s, "FOO99") || !strings.Contains(s, "ab1234") {
+		t.Errorf("warn log missing entries: %s", s)
 	}
 }

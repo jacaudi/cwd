@@ -8,11 +8,17 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
+)
+
+var (
+	ugcRE = regexp.MustCompile(`^[A-Z]{2}[CZ]\d{3}$`)
+	wfoRE = regexp.MustCompile(`^[A-Z]{3}$`)
 )
 
 // Config is the top-level configuration struct.
@@ -115,10 +121,33 @@ func LoadWithLogger(path string, logger *slog.Logger) (*Config, error) {
 	// Re-apply defaults on a per-source basis so partial source maps still get sane defaults.
 	mergeSourceDefaults(cfg)
 
+	validateRegionFilter(cfg, logger)
+
 	if err := validate(cfg); err != nil {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// validateRegionFilter drops entries that don't match the format and warns.
+// Must run BEFORE the filter is constructed in server.Run so bad entries
+// never reach sources.NewFilter.
+func validateRegionFilter(cfg *Config, logger *slog.Logger) {
+	rf := &cfg.Derived.Thresholds.RegionFilter
+	rf.UGCs = filterByRegex(rf.UGCs, ugcRE, "ugc", logger)
+	rf.WFOs = filterByRegex(rf.WFOs, wfoRE, "wfo", logger)
+}
+
+func filterByRegex(in []string, re *regexp.Regexp, kind string, logger *slog.Logger) []string {
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if re.MatchString(s) {
+			out = append(out, s)
+		} else {
+			logger.Warn("config.region_filter_invalid", "kind", kind, "value", s, "pattern", re.String())
+		}
+	}
+	return out
 }
 
 // Load reads the YAML at path, applies defaults, applies CWD_* env overrides, and validates.
