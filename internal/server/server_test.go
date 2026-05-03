@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,6 +49,97 @@ func TestRunStartsAndShutsDownGracefully(t *testing.T) {
 		t.Errorf("/healthz status = %d, want 200", resp.StatusCode)
 	}
 
+	cancel()
+	if err := <-errCh; err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, http.ErrServerClosed) {
+		t.Errorf("Run error = %v", err)
+	}
+}
+
+func TestRun_AllFiveSourcesGoLiveAndHotStart(t *testing.T) {
+	nwsBody := []byte(`{"type":"FeatureCollection","features":[]}`)
+	swpcScalesBody := []byte(`{"1":{"DateStamp":"2026-05-03","R":{"MinorProb":"5","MajorProb":"0"},"S":{"Prob":"0"},"G":{"Scale":"0","Text":"none"}},"2":{"DateStamp":"2026-05-04","R":{"MinorProb":"5","MajorProb":"0"},"S":{"Prob":"0"},"G":{"Scale":"0","Text":"none"}},"3":{"DateStamp":"2026-05-05","R":{"MinorProb":"5","MajorProb":"0"},"S":{"Prob":"0"},"G":{"Scale":"0","Text":"none"}}}`)
+	swpcAlertsBody := []byte(`[]`)
+	quakesBody := []byte(`{"type":"FeatureCollection","features":[]}`)
+	volcsBody := []byte(`[]`)
+
+	makeServer := func(body []byte, contentType string) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", contentType)
+			w.Header().Set("ETag", `"e1"`)
+			_, _ = w.Write(body)
+		}))
+	}
+	nwsSrv := makeServer(nwsBody, "application/geo+json")
+	defer nwsSrv.Close()
+	scalesSrv := makeServer(swpcScalesBody, "application/json")
+	defer scalesSrv.Close()
+	alertsSrv := makeServer(swpcAlertsBody, "application/json")
+	defer alertsSrv.Close()
+	quakesSrv := makeServer(quakesBody, "application/geo+json")
+	defer quakesSrv.Close()
+	volcsSrv := makeServer(volcsBody, "application/json")
+	defer volcsSrv.Close()
+
+	t.Setenv("CWD_NWS_ALERTS_URL", nwsSrv.URL)
+	t.Setenv("CWD_SWPC_SCALES_URL", scalesSrv.URL)
+	t.Setenv("CWD_SWPC_ALERTS_URL", alertsSrv.URL)
+	t.Setenv("CWD_USGS_QUAKES_URL", quakesSrv.URL)
+	t.Setenv("CWD_USGS_VOLCANOES_URL", volcsSrv.URL)
+
+	enabled := true
+	cfg := &config.Config{
+		Server: config.ServerConfig{Bind: "127.0.0.1:0", LogLevel: "info", LogFormat: "text", Contact: "test@example.com"},
+		UI:     config.UIConfig{DefaultTheme: "dark", DefaultLanding: "/", EnableHistory: true},
+		Store:  config.StoreConfig{Path: filepath.Join(t.TempDir(), "cwd.db"), RetentionDays: 30},
+		Sources: map[string]config.SourceConfig{
+			"nws_alerts":     {Interval: 80 * time.Millisecond, Enabled: &enabled},
+			"swpc_scales":    {Interval: 80 * time.Millisecond, Enabled: &enabled},
+			"swpc_alerts":    {Interval: 80 * time.Millisecond, Enabled: &enabled},
+			"usgs_quakes":    {Interval: 80 * time.Millisecond, Enabled: &enabled},
+			"usgs_volcanoes": {Interval: 80 * time.Millisecond, Enabled: &enabled},
+		},
+		Derived: config.DerivedConfig{Thresholds: config.ThresholdsConfig{
+			SWPCAlertWindowHours: 24,
+			SWPCAlertProducts:    []string{"K08A", "K09A", "P12A", "P13A"},
+		}},
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	addrCh := make(chan string, 1)
+	errCh := make(chan error, 1)
+	go func() { errCh <- Run(ctx, cfg, logger, addrCh) }()
+	addr := <-addrCh
+
+	deadline := time.After(3 * time.Second)
+	for {
+		select {
+		case <-deadline:
+			t.Fatal("/readyz never went 200")
+		default:
+		}
+		resp, err := http.Get("http://" + addr + "/readyz")
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				goto done
+			}
+		}
+		time.Sleep(40 * time.Millisecond)
+	}
+done:
+	resp, err := http.Get("http://" + addr + "/api/sources")
+	if err != nil {
+		t.Fatalf("GET /api/sources: %v", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	for _, name := range []string{"nws_alerts", "swpc_scales", "swpc_alerts", "usgs_quakes", "usgs_volcanoes"} {
+		if !strings.Contains(string(body), name) {
+			t.Errorf("/api/sources missing %s: %s", name, body)
+		}
+	}
 	cancel()
 	if err := <-errCh; err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, http.ErrServerClosed) {
 		t.Errorf("Run error = %v", err)
