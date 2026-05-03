@@ -2310,7 +2310,7 @@ git commit -m "feat(p2): /api/snapshot surfaces all 5 typed source payloads"
 **Dependencies:** none. Independent of Tasks 5–10.
 
 **Why:** Design §8 calls for three validation extensions on top of Phase 1's `validateRegionFilter`:
-1. Drop entries in `swpc_alert_products` that don't match `^[A-Z]{3,8}[0-9A-Z]?$` and WARN.
+1. Drop entries in `swpc_alert_products` that don't match `^[A-Z][A-Z0-9]{2,7}$` and WARN. (The earlier draft `^[A-Z]{3,8}[0-9A-Z]?$` rejected every entry in `defaults()` — K08A/K09A/P12A/P13A — and every fixture in Step 11.1 below; corrected before implementation.)
 2. Clamp `swpc_alert_window_hours <= 0` to 24 and WARN.
 3. WARN (don't fail) when any enabled source has `interval < 10s`.
 
@@ -2401,7 +2401,13 @@ go test ./internal/config/ -run 'TestValidate(SWPC|Source)' -v
 Add these three helpers (place them next to `validateRegionFilter`):
 
 ```go
-var swpcProductRE = regexp.MustCompile(`^[A-Z]{3,8}[0-9A-Z]?$`)
+// SWPC product code regex. Accepts the documented namespace from
+// internal/sources/swpc_alerts.go: K-series (K04A...K09[AW]), P-series
+// (P10A...P15A), WARK*/WATA*/RWAR/X-series (X1XW, X10XW, ...), SUM*.
+// The first-draft regex `^[A-Z]{3,8}[0-9A-Z]?$` rejected every entry in
+// defaults() (K08A/K09A/P12A/P13A) and every fixture in Step 11.1, so it
+// was corrected to the form below before implementation.
+var swpcProductRE = regexp.MustCompile(`^[A-Z][A-Z0-9]{2,7}$`)
 
 // validateSWPCProducts drops entries that don't match the SWPC product code
 // shape and WARNs. Mirrors validateRegionFilter's pattern.

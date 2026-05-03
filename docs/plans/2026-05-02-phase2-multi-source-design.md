@@ -468,7 +468,7 @@ No new config keys. Everything Phase 2 consumes is already in the schema (parent
 **Validation at boot** (extends Phase 1):
 - For each enabled source with `interval < 10s` → WARN (matches Phase 1 NWS pattern). Already wired in Phase 1 for nws_alerts via the `interval` floor; Phase 2 generalizes the warning to all sources.
 - `swpc_alert_window_hours <= 0` → clamp to 24 + WARN.
-- `swpc_alert_products` entries failing `/^[A-Z]{3,8}[0-9A-Z]?$/` → WARN-and-drop (mirrors Phase 1's `validateRegionFilter`).
+- `swpc_alert_products` entries failing `/^[A-Z][A-Z0-9]{2,7}$/` → WARN-and-drop (mirrors Phase 1's `validateRegionFilter`). Regex accepts the documented SWPC namespace (K-series, P-series, WARK*/WATA*/RWAR/X-series, SUM*) and every entry in `defaults()`. The pre-implementation draft `^[A-Z]{3,8}[0-9A-Z]?$` rejected all defaults (K08A/K09A/P12A/P13A) and was corrected before code was written.
 - For each enabled source with `server.contact == ""` → WARN at boot (already wired via `cfg.MissingContact()`).
 
 **Per-source env override pattern carries forward unchanged:**
