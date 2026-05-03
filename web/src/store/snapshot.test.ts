@@ -23,6 +23,70 @@ describe('snapshot store', () => {
     expect(useSnapshotStore.getState().snapshot?.sources.nws_alerts?.payload).toEqual([]);
   });
 
+  it('routes updates by source key', () => {
+    useSnapshotStore.getState().setSnapshot({ serverTime: 't', sources: {} });
+    useSnapshotStore.getState().applyUpdate('swpc_scales', {
+      source: 'swpc_scales',
+      fetchedAt: 't',
+      payload: {
+        days: [
+          { date: '2026-05-03', r1: 5, r3: 0, s1: 0 },
+          { date: '2026-05-04', r1: 5, r3: 0, s1: 0 },
+          { date: '2026-05-05', r1: 5, r3: 0, s1: 0 },
+        ],
+      },
+    });
+    useSnapshotStore.getState().applyUpdate('usgs_quakes', {
+      source: 'usgs_quakes',
+      fetchedAt: 't',
+      payload: [
+        {
+          id: 'q1',
+          magnitude: 6.0,
+          place: 'X',
+          time: 't',
+          updatedAt: 't',
+          lat: 0,
+          lon: 0,
+          depthKm: 5,
+          tsunami: false,
+        },
+      ],
+    });
+    useSnapshotStore.getState().applyUpdate('swpc_alerts', {
+      source: 'swpc_alerts',
+      fetchedAt: 't',
+      payload: [
+        {
+          code: 'K07',
+          series: 'ALERT',
+          description: 'Geomagnetic K=7',
+          issued: 't',
+          message: 'msg',
+        },
+      ],
+    });
+    useSnapshotStore.getState().applyUpdate('usgs_volcanoes', {
+      source: 'usgs_volcanoes',
+      fetchedAt: 't',
+      payload: [
+        {
+          id: 'v1',
+          name: 'Kilauea',
+          region: 'Hawaii',
+          alert: 'WATCH',
+          color: 'ORANGE',
+          updatedAt: 't',
+        },
+      ],
+    });
+    const s = useSnapshotStore.getState().snapshot!;
+    expect(s.sources.swpc_scales?.payload.days[0].date).toBe('2026-05-03');
+    expect(s.sources.usgs_quakes?.payload[0].id).toBe('q1');
+    expect(s.sources.swpc_alerts?.payload[0].code).toBe('K07');
+    expect(s.sources.usgs_volcanoes?.payload[0].alert).toBe('WATCH');
+  });
+
   it('updates one source on applyUpdate', () => {
     useSnapshotStore.getState().setSnapshot({
       serverTime: '2026-05-02T12:00:00Z',
