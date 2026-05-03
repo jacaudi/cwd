@@ -1,16 +1,16 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { Card, Space, Typography } from 'antd';
+import { useNavigate } from 'react-router-dom';
 import { AlertBadgeBar } from '../components/AlertBadgeBar';
-import { TsunamiPanel } from '../components/TsunamiPanel';
 import { useSnapshotStore } from '../store/snapshot';
 import { connect } from '../api/stream';
 
 export default function Overview() {
+  const navigate = useNavigate();
   const snapshot = useSnapshotStore((s) => s.snapshot);
   const setSnapshot = useSnapshotStore((s) => s.setSnapshot);
   const applyUpdate = useSnapshotStore((s) => s.applyUpdate);
   const setConnection = useSnapshotStore((s) => s.setConnection);
-  const tsuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancel: (() => void) | undefined;
@@ -43,12 +43,9 @@ export default function Overview() {
       >
         <AlertBadgeBar
           alerts={alerts}
-          onTsunamiClick={() => tsuRef.current?.scrollIntoView({ behavior: 'smooth' })}
+          onTsunamiClick={() => navigate('/events#tsunami')}
         />
       </Card>
-      <div ref={tsuRef}>
-        <TsunamiPanel alerts={alerts} />
-      </div>
     </Space>
   );
 }
