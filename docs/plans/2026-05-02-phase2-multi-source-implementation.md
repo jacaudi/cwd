@@ -346,9 +346,14 @@ The endpoint returns a JSON array of volcanoes the USGS HANS system currently li
 jq 'type' internal/sources/testdata/usgs_volcanoes_typical.json
 # Expect: "array"
 jq 'length' internal/sources/testdata/usgs_volcanoes_typical.json
-# Expect: > 0 (commonly 5-15)
-jq '.[0] | keys' internal/sources/testdata/usgs_volcanoes_typical.json
-# Expect: a key set including (at minimum) volcano name, alert/color level, latitude, longitude, region.
+# Expect: > 0 (commonly 3-15)
+jq '[.[] | keys] | add | unique' internal/sources/testdata/usgs_volcanoes_typical.json
+# Expect (verified live 2026-05-02 — snake_case, not camelCase):
+#   ["alert_level","color_code","notice_data","notice_identifier","notice_type_cd",
+#    "notice_url","obs_abbr","obs_fullname","sent_unixtime","sent_utc","vnum","volcano_name"]
+# Note: the design §6.4 sketch lists latitude/longitude/region/synopsis fields,
+# but those fields do NOT exist on this endpoint. See Task 8 for how the
+# Volcano wire shape is reconciled with the upstream's actual key set.
 ```
 
 - [ ] **Step 4.3: Document the fixture**
@@ -1553,6 +1558,14 @@ git commit -m "feat(p2): usgs_quakes Source (GeoJSON parse + ETag passthrough)"
 
 **Why:** Reads `volcanoes.usgs.gov/hans-public/api/volcano/getElevatedVolcanoes` (JSON), drops entries whose alert level is `NORMAL` (the upstream commonly returns only non-NORMAL but the parser is defensive), sorts by region then name for stable display, and uses upstream ETag passthrough (5-minute cadence per design §3). The RSS-fallback comment block from design §6.4 is committed verbatim.
 
+**Design deviation — verified against live capture 2026-05-02:** the upstream uses snake_case field names (`volcano_name`, `alert_level`, `color_code`, `vnum`, `notice_url`, `sent_utc`, `obs_fullname`), NOT the camelCase the design sketch implies. The endpoint also does **not** return `latitude`, `longitude`, `region`, or `synopsis` fields at all. The plan reconciles this by:
+- Using the actual snake_case keys in the `rawVolcano` struct.
+- Deriving `Region` from `obs_fullname` (e.g. "Alaska Volcano Observatory" → "Alaska Volcano Observatory" — kept as-is so the operator sees the full provenance string in the UI; trimming the " Volcano Observatory" suffix is a v2 polish).
+- **Dropping `Lat`, `Lon`, `Synopsis` from the `Volcano` wire type** since they're not available from this endpoint.
+- Using `vnum` (the USGS volcano number) as `ID` and `notice_url` as `URL`.
+
+If the user wants `lat`/`lon`/`synopsis` populated, the only path is the per-notice detail endpoint (`notice_data` URL) which would mean N+1 fetches per poll — out of scope for v1. Tracked in the Self-review's open-question list.
+
 - [ ] **Step 8.1: Write the failing tests**
 
 ```go
@@ -1587,10 +1600,14 @@ func TestUSGSVolcanoes_ParseFixture(t *testing.T) {
 }
 
 func TestUSGSVolcanoes_DropsNORMAL(t *testing.T) {
+	// Field-name shape verified against live capture 2026-05-02:
+	// snake_case (volcano_name, alert_level, color_code, vnum, notice_url,
+	// sent_utc, obs_fullname). No latitude/longitude/region/synopsis fields
+	// exist on this endpoint.
 	body := []byte(`[
-		{"volcanoCd":"a1","volcanoName":"A","obsAbbr":"AVO","region":"Alaska","latitude":60,"longitude":-150,"alertLevel":"NORMAL","colorCode":"GREEN","summary":"quiet","updateDate":"2026-05-02T10:00:00Z","url":"https://a"},
-		{"volcanoCd":"a2","volcanoName":"B","obsAbbr":"AVO","region":"Alaska","latitude":61,"longitude":-152,"alertLevel":"WATCH","colorCode":"ORANGE","summary":"unrest","updateDate":"2026-05-02T10:00:00Z","url":"https://b"},
-		{"volcanoCd":"a3","volcanoName":"C","obsAbbr":"CalVO","region":"CalVO","latitude":40,"longitude":-122,"alertLevel":"ADVISORY","colorCode":"YELLOW","summary":"elevated","updateDate":"2026-05-02T10:00:00Z","url":"https://c"}
+		{"vnum":"a1","volcano_name":"A","obs_abbr":"avo","obs_fullname":"Alaska Volcano Observatory","alert_level":"NORMAL","color_code":"GREEN","sent_utc":"2026-05-02 10:00:00","notice_url":"https://a"},
+		{"vnum":"a2","volcano_name":"B","obs_abbr":"avo","obs_fullname":"Alaska Volcano Observatory","alert_level":"WATCH","color_code":"ORANGE","sent_utc":"2026-05-02 10:00:00","notice_url":"https://b"},
+		{"vnum":"a3","volcano_name":"C","obs_abbr":"cvo","obs_fullname":"California Volcano Observatory","alert_level":"ADVISORY","color_code":"YELLOW","sent_utc":"2026-05-02 10:00:00","notice_url":"https://c"}
 	]`)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	got, err := ParseUSGSVolcanoes(body, logger)
@@ -1609,9 +1626,9 @@ func TestUSGSVolcanoes_DropsNORMAL(t *testing.T) {
 
 func TestUSGSVolcanoes_SortsByRegionThenName(t *testing.T) {
 	body := []byte(`[
-		{"volcanoCd":"3","volcanoName":"Zeta","region":"Alaska","alertLevel":"WATCH","colorCode":"ORANGE","updateDate":"2026-05-02T10:00:00Z"},
-		{"volcanoCd":"1","volcanoName":"Beta","region":"Alaska","alertLevel":"WATCH","colorCode":"ORANGE","updateDate":"2026-05-02T10:00:00Z"},
-		{"volcanoCd":"2","volcanoName":"Alpha","region":"CalVO","alertLevel":"WATCH","colorCode":"ORANGE","updateDate":"2026-05-02T10:00:00Z"}
+		{"vnum":"3","volcano_name":"Zeta","obs_fullname":"Alaska Volcano Observatory","alert_level":"WATCH","color_code":"ORANGE","sent_utc":"2026-05-02 10:00:00"},
+		{"vnum":"1","volcano_name":"Beta","obs_fullname":"Alaska Volcano Observatory","alert_level":"WATCH","color_code":"ORANGE","sent_utc":"2026-05-02 10:00:00"},
+		{"vnum":"2","volcano_name":"Alpha","obs_fullname":"California Volcano Observatory","alert_level":"WATCH","color_code":"ORANGE","sent_utc":"2026-05-02 10:00:00"}
 	]`)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	got, err := ParseUSGSVolcanoes(body, logger)
@@ -1628,6 +1645,9 @@ func TestUSGSVolcanoes_SortsByRegionThenName(t *testing.T) {
 	}
 	if got[0].Name != "Beta" || got[1].Name != "Zeta" || got[2].Name != "Alpha" {
 		t.Errorf("order: %+v", got)
+	}
+	if got[0].Region != "Alaska Volcano Observatory" {
+		t.Errorf("Region should come from obs_fullname, got %q", got[0].Region)
 	}
 }
 
@@ -1720,17 +1740,20 @@ const (
 )
 
 // Volcano is a normalized non-NORMAL USGS volcano entry.
+//
+// Design §6.4 sketched lat/lon/synopsis fields, but the chosen
+// `getElevatedVolcanoes` upstream does not return them. Region is derived
+// from the upstream `obs_fullname` (e.g. "Alaska Volcano Observatory").
+// Lat/lon/synopsis would require N+1 fetches against the per-notice
+// `notice_data` URL — out of scope for v1.
 type Volcano struct {
-	ID        string     `json:"id"`
-	Name      string     `json:"name"`
-	Region    string     `json:"region"`
-	Lat       float64    `json:"lat"`
-	Lon       float64    `json:"lon"`
-	Alert     AlertLevel `json:"alert"`
-	Color     ColorCode  `json:"color"`
-	UpdatedAt time.Time  `json:"updatedAt"`
-	Synopsis  string     `json:"synopsis,omitempty"`
-	URL       string     `json:"url,omitempty"`
+	ID        string     `json:"id"`        // upstream "vnum"
+	Name      string     `json:"name"`      // upstream "volcano_name"
+	Region    string     `json:"region"`    // derived from upstream "obs_fullname"
+	Alert     AlertLevel `json:"alert"`     // upstream "alert_level"
+	Color     ColorCode  `json:"color"`     // upstream "color_code"
+	UpdatedAt time.Time  `json:"updatedAt"` // upstream "sent_utc"
+	URL       string     `json:"url,omitempty"` // upstream "notice_url"
 }
 
 // USGS volcano feeds — operator menu.
@@ -1743,23 +1766,27 @@ type Volcano struct {
 // and is what the parent design originally listed. If the JSON endpoint is
 // ever deprecated upstream, swap to the RSS feed and add a small XML-to-
 // Volcano parser. Polling cadence stays 5min.
+// rawVolcano matches the actual `getElevatedVolcanoes` JSON shape
+// (verified live 2026-05-02 — snake_case keys).
 type rawVolcano struct {
-	VolcanoCd   string  `json:"volcanoCd"`
-	VolcanoName string  `json:"volcanoName"`
-	Region      string  `json:"region"`
-	Latitude    float64 `json:"latitude"`
-	Longitude   float64 `json:"longitude"`
-	AlertLevel  string  `json:"alertLevel"`
-	ColorCode   string  `json:"colorCode"`
-	Summary     string  `json:"summary"`
-	UpdateDate  string  `json:"updateDate"`
-	URL         string  `json:"url"`
+	Vnum         string `json:"vnum"`
+	VolcanoName  string `json:"volcano_name"`
+	ObsFullname  string `json:"obs_fullname"`
+	ObsAbbr      string `json:"obs_abbr"`
+	AlertLevel   string `json:"alert_level"`
+	ColorCode    string `json:"color_code"`
+	SentUTC      string `json:"sent_utc"`
+	SentUnixtime int64  `json:"sent_unixtime"`
+	NoticeURL    string `json:"notice_url"`
 }
+
+// usgsSentLayout is the upstream `sent_utc` shape — "YYYY-MM-DD HH:MM:SS"
+// (no timezone suffix; documented by field name as UTC).
+const usgsSentLayout = "2006-01-02 15:04:05"
 
 // ParseUSGSVolcanoes decodes the getElevatedVolcanoes JSON array, drops
 // NORMAL-level entries, and sorts by region then name. Bad timestamps fall
-// back to zero time (entry not dropped — name+alert are the load-bearing
-// fields).
+// back to sent_unixtime (or zero time) rather than dropping the entry.
 func ParseUSGSVolcanoes(body []byte, logger *slog.Logger) ([]Volcano, error) {
 	if logger == nil {
 		logger = slog.Default()
@@ -1774,22 +1801,23 @@ func ParseUSGSVolcanoes(body []byte, logger *slog.Logger) ([]Volcano, error) {
 		if alert == AlertNORMAL || alert == "" {
 			continue
 		}
-		ts, err := time.Parse(time.RFC3339, r.UpdateDate)
+		ts, err := time.Parse(usgsSentLayout, r.SentUTC)
 		if err != nil {
-			logger.Debug("usgs_volcanoes.bad_timestamp", "volcano", r.VolcanoName, "value", r.UpdateDate)
-			ts = time.Time{}
+			if r.SentUnixtime > 0 {
+				ts = time.Unix(r.SentUnixtime, 0)
+			} else {
+				logger.Debug("usgs_volcanoes.bad_timestamp", "volcano", r.VolcanoName, "value", r.SentUTC)
+				ts = time.Time{}
+			}
 		}
 		out = append(out, Volcano{
-			ID:        r.VolcanoCd,
+			ID:        r.Vnum,
 			Name:      r.VolcanoName,
-			Region:    r.Region,
-			Lat:       r.Latitude,
-			Lon:       r.Longitude,
+			Region:    r.ObsFullname,
 			Alert:     alert,
 			Color:     ColorCode(r.ColorCode),
 			UpdatedAt: ts.UTC(),
-			Synopsis:  r.Summary,
-			URL:       r.URL,
+			URL:       r.NoticeURL,
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool {
@@ -2765,16 +2793,16 @@ export interface Quake {
 export type AlertLevel = 'NORMAL' | 'ADVISORY' | 'WATCH' | 'WARNING';
 export type ColorCode  = 'GREEN'  | 'YELLOW'   | 'ORANGE' | 'RED';
 
+// Volcano shape verified against live getElevatedVolcanoes 2026-05-02.
+// Design §6.4 also listed lat/lon/synopsis but the upstream does not return
+// them on this endpoint; see Task 8 plan body for the deviation rationale.
 export interface Volcano {
   id: string;
   name: string;
-  region: string;
-  lat: number;
-  lon: number;
+  region: string;       // derived from upstream obs_fullname
   alert: AlertLevel;
   color: ColorCode;
   updatedAt: string;
-  synopsis?: string;
   url?: string;
 }
 
@@ -3467,7 +3495,7 @@ git commit -m "feat(p2): EarthquakeList component (mag-tier color + tsunami icon
 
 **Dependencies:** — depends on: Task 13 (frontend wire layer).
 
-**Why:** Block 3 of the Events page (design §7.2). Renders elevated-alert volcanoes as an AntD `List` with name title; alert-level Tag (`ADVISORY` yellow, `WATCH` orange, `WARNING` red); color-code Tag; truncated synopsis; external link. **Returns `null` when empty.**
+**Why:** Block 3 of the Events page (design §7.2). Renders elevated-alert volcanoes as an AntD `List` with name title; region (USGS observatory full name); alert-level Tag (`ADVISORY` yellow, `WATCH` orange, `WARNING` red); color-code Tag; relative `updatedAt`; external link to the per-notice URL. **Returns `null` when empty.** Note: lat/lon/synopsis are not rendered because the chosen `getElevatedVolcanoes` upstream does not return them (see Task 8 for the design deviation).
 
 - [ ] **Step 17.1: Write the failing test**
 
@@ -3481,16 +3509,13 @@ import type { Volcano } from '../api/types';
 
 function mk(over: Partial<Volcano>): Volcano {
   return {
-    id: 'avo-redoubt',
+    id: '311100',
     name: 'Redoubt',
-    region: 'Alaska',
-    lat: 60.4853,
-    lon: -152.7438,
+    region: 'Alaska Volcano Observatory',
     alert: 'WATCH',
     color: 'ORANGE',
     updatedAt: '2026-05-02T10:00:00Z',
-    synopsis: 'Elevated unrest with periodic seismicity.',
-    url: 'https://volcanoes.usgs.gov/volcano/avo-redoubt',
+    url: 'https://volcanoes.usgs.gov/hans-public/notice/example',
     ...over,
   };
 }
@@ -3502,11 +3527,11 @@ describe('VolcanoList', () => {
   });
 
   it('renders a row per volcano with name + region', () => {
-    render(<VolcanoList volcanoes={[mk({}), mk({ id: 'b', name: 'Shasta', region: 'CalVO' })]} />);
+    render(<VolcanoList volcanoes={[mk({}), mk({ id: 'b', name: 'Shasta', region: 'California Volcano Observatory' })]} />);
     expect(screen.getByText('Redoubt')).toBeInTheDocument();
     expect(screen.getByText('Shasta')).toBeInTheDocument();
-    expect(screen.getByText(/Alaska/)).toBeInTheDocument();
-    expect(screen.getByText(/CalVO/)).toBeInTheDocument();
+    expect(screen.getByText(/Alaska Volcano Observatory/)).toBeInTheDocument();
+    expect(screen.getByText(/California Volcano Observatory/)).toBeInTheDocument();
   });
 
   it('renders alert-level tag color via data-alert', () => {
@@ -3527,9 +3552,9 @@ describe('VolcanoList', () => {
   });
 
   it('renders external link', () => {
-    render(<VolcanoList volcanoes={[mk({ url: 'https://volcanoes.usgs.gov/volcano/avo-redoubt' })]} />);
+    render(<VolcanoList volcanoes={[mk({ url: 'https://volcanoes.usgs.gov/hans-public/notice/example' })]} />);
     const link = screen.getByRole('link') as HTMLAnchorElement;
-    expect(link.href).toContain('avo-redoubt');
+    expect(link.href).toContain('hans-public/notice/example');
     expect(link.target).toBe('_blank');
     expect(link.rel).toContain('noopener');
   });
@@ -3560,11 +3585,6 @@ const COLOR_CHIP: Record<ColorCode, string> = {
   ORANGE: 'orange',
   RED:    'red',
 };
-
-function truncate(s: string, max = 150): string {
-  if (s.length <= max) return s;
-  return s.slice(0, max - 1) + '…';
-}
 
 function relative(iso: string): string {
   if (!iso) return '';
@@ -3605,9 +3625,6 @@ export function VolcanoList({ volcanoes }: Props) {
                   {v.alert}
                 </Tag>
                 <Tag color={COLOR_CHIP[v.color]}>{v.color}</Tag>
-                {v.synopsis && (
-                  <Typography.Text type="secondary">{truncate(v.synopsis)}</Typography.Text>
-                )}
                 {v.updatedAt && (
                   <Typography.Text type="secondary">· {relative(v.updatedAt)}</Typography.Text>
                 )}
@@ -3823,7 +3840,7 @@ describe('Events page', () => {
           },
           usgs_volcanoes: {
             source: 'usgs_volcanoes', fetchedAt: 't',
-            payload: [{ id: 'v1', name: 'Redoubt', region: 'Alaska', lat: 60, lon: -152, alert: 'WATCH', color: 'ORANGE', updatedAt: '2026-05-02T10:00:00Z' }],
+            payload: [{ id: '311100', name: 'Redoubt', region: 'Alaska Volcano Observatory', alert: 'WATCH', color: 'ORANGE', updatedAt: '2026-05-02T10:00:00Z' }],
           },
         },
       },
@@ -4265,18 +4282,20 @@ Searched the plan body for `TBD`, `TODO`, `implement later`, `add appropriate`, 
 - Go: `SWPCForecast.Days [3]SWPCDay`; TS: `SWPCForecast.days: [SWPCDay, SWPCDay, SWPCDay]` — tuple length matches.
 - Go `SWPCAlert{Code, Series, Description, Issued, Message, URL}` ↔ TS `SWPCAlert{code, series, description, issued, message, url?}` — JSON tags match field-for-field.
 - Go `Quake{ID, Magnitude, Place, Time, UpdatedAt, Lat, Lon, DepthKm, Tsunami, Alert?, URL?}` ↔ TS `Quake{id, magnitude, place, time, updatedAt, lat, lon, depthKm, tsunami, alert?, url?}` — JSON tags match.
-- Go `Volcano{ID, Name, Region, Lat, Lon, Alert, Color, UpdatedAt, Synopsis?, URL?}` ↔ TS `Volcano{id, name, region, lat, lon, alert, color, updatedAt, synopsis?, url?}` — JSON tags match.
+- Go `Volcano{ID, Name, Region, Alert, Color, UpdatedAt, URL?}` ↔ TS `Volcano{id, name, region, alert, color, updatedAt, url?}` — JSON tags match. (Design §6.4 also listed `lat`/`lon`/`synopsis` but the chosen `getElevatedVolcanoes` upstream does not return them; see Task 8 design-deviation note.)
 - Go `AlertLevel` enum members `NORMAL/ADVISORY/WATCH/WARNING` ↔ TS `AlertLevel` union — match. Same for `ColorCode` `GREEN/YELLOW/ORANGE/RED`.
 - Hot-start helper signatures match the names exported by each source file (`SWPCScalesName`, `SWPCAlertsName`, `USGSQuakesName`, `USGSVolcanoesName`, `NWSAlertsName`).
 - `SourcePayloadMap` (Task 13) names match `Snapshot.sources` keys exactly.
 
-### Open questions for the executor (gaps the design did NOT cover)
+### Open questions — resolved against live captures (2026-05-02)
 
-1. **SWPC `issue_datetime` timezone (design §6.2):** The design specifies the field is parsed but doesn't explicitly state the upstream tz. The plan assumes UTC (treats `2026-05-02 10:00:00.000` as a UTC wall-clock via `time.Parse(layout, ...)`, which produces a UTC `time.Time`). If SWPC documents this as Eastern or some other zone, the parser will need a `time.LoadLocation` step. **Action for executor: confirm against the captured fixture's `issue_datetime` values vs. published SWPC timing during Step 6.1 fixture sanity-check; flag if they look offset from real-time SWPC alerts feed cadence.**
-2. **USGS `getElevatedVolcanoes` field name casing (design §6.4):** The design names the wire fields generically (`alert`, `color`, `synopsis`, `region`) but the upstream uses `alertLevel` / `colorCode` / `summary` / `volcanoName` / etc. The plan picks the upstream names for the `rawVolcano` struct and maps them into the documented `Volcano` shape. **Action for executor: verify against the live capture in Step 4.2 — if any field is missing from the upstream JSON, log a Debug-level message and tolerate zero values rather than failing the parse.**
-3. **`usgs_volcanoes` URL field (design §6.4):** The design lists `URL` on the wire shape but doesn't specify where it comes from in the upstream. The plan reads it from `r.URL`; if the upstream uses a different key (e.g. `volcanoUrl`), the executor should add a json tag mapping rather than synthesize a URL. Do not invent a `https://volcanoes.usgs.gov/...` template — leave the field empty if the upstream omits it.
+All three open questions raised during planning were verified against live samples and resolved before this plan was finalized. Recorded here for audit:
 
-These three are the only items in the design that require the executor to make a concrete choice based on the live upstream shape during fixture capture (Tasks 1–4). Everything else is fully specified.
+1. **SWPC `issue_datetime` timezone — RESOLVED: UTC.** The live `alerts.json` capture shows the field's HH:MM:SS exactly matches the "Issue Time: ... UTC" line embedded in the upstream `message` body (e.g. `"issue_datetime":"2026-05-02 11:11:38.977"` vs. message line `"Issue Time: 2026 May 02 1111 UTC"`). The plan's `time.Parse(swpcIssueDatetimeLayout, ...)` produces a UTC `time.Time` correctly. No `time.LoadLocation` needed.
+2. **USGS volcano field-name casing + missing fields — RESOLVED: design deviation accepted.** The live `getElevatedVolcanoes` capture uses snake_case (`volcano_name`, `alert_level`, `color_code`, `vnum`, `notice_url`, `sent_utc`, `obs_fullname`) and does **not** return `latitude`, `longitude`, `region`, or `synopsis`. The plan trims these from the `Volcano` wire type, derives `Region` from `obs_fullname`, and documents the deviation inline in Task 8. If the operator later wants per-volcano synopsis/lat/lon, the only path is the per-notice `notice_data` URL, which would mean N+1 fetches per poll — flagged in Task 8 as out of scope for v1.
+3. **USGS volcano URL field source — RESOLVED:** the upstream key is `notice_url` (per-notice permalink), not `url`/`volcanoUrl`. The plan's `rawVolcano` struct uses the `notice_url` json tag; no template synthesis.
+
+There are no remaining open questions. Everything in the plan body is fully specified against verified upstream behavior or established Phase 1 contracts.
 
 ### Notes from reading the actual Phase 1 code (drift from design assumptions)
 
