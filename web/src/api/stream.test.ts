@@ -43,4 +43,24 @@ describe('stream client', () => {
     });
     expect(events.find((x) => x.type === 'upd' && x.n === 'nws_alerts')).toBeTruthy();
   });
+
+  it('registers a listener for every source.update event', async () => {
+    const fakeFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ serverTime: 't', sources: {} }),
+    });
+    vi.stubGlobal('fetch', fakeFetch);
+    vi.stubGlobal('EventSource', FakeES as any);
+
+    await connect({ onSnapshot: () => {}, onUpdate: () => {} });
+    for (const name of [
+      'nws_alerts',
+      'swpc_scales',
+      'swpc_alerts',
+      'usgs_quakes',
+      'usgs_volcanoes',
+    ]) {
+      expect(FakeES.last!.listeners[`${name}.update`]).toBeTruthy();
+    }
+  });
 });

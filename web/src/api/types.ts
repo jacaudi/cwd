@@ -42,6 +42,62 @@ export interface Alert {
   category: Category;
 }
 
+// ── Phase 2: SWPC + USGS wire types ───────────────────────────────────────
+
+export type GScale = 'G1' | 'G2' | 'G3' | 'G4' | 'G5';
+
+export interface SWPCDay {
+  date: string;
+  r1: number;
+  r3: number;
+  s1: number;
+  g?: GScale;
+  gText?: string;
+}
+
+export interface SWPCForecast {
+  days: [SWPCDay, SWPCDay, SWPCDay];
+}
+
+export interface SWPCAlert {
+  code: string;
+  series: string;
+  description: string;
+  issued: string;
+  message: string;
+  url?: string;
+}
+
+export interface Quake {
+  id: string;
+  magnitude: number;
+  place: string;
+  time: string;
+  updatedAt: string;
+  lat: number;
+  lon: number;
+  depthKm: number;
+  tsunami: boolean;
+  alert?: string;
+  url?: string;
+}
+
+export type AlertLevel = 'NORMAL' | 'ADVISORY' | 'WATCH' | 'WARNING';
+export type ColorCode  = 'GREEN'  | 'YELLOW'   | 'ORANGE' | 'RED';
+
+// Volcano shape verified against live getElevatedVolcanoes 2026-05-02.
+// Design §6.4 also listed lat/lon/synopsis but the upstream does not return
+// them on this endpoint; see Task 8 plan body for the deviation rationale.
+export interface Volcano {
+  id: string;
+  name: string;
+  region: string;       // derived from upstream obs_fullname
+  alert: AlertLevel;
+  color: ColorCode;
+  updatedAt: string;
+  url?: string;
+}
+
 export interface Envelope<T> {
   source: string;
   fetchedAt: string;
@@ -52,8 +108,11 @@ export interface Envelope<T> {
 export interface Snapshot {
   serverTime: string;
   sources: {
-    nws_alerts?: Envelope<Alert[]>;
-    // swpc_scales, swpc_alerts, usgs_quakes, usgs_volcanoes: Phase 2
+    nws_alerts?:     Envelope<Alert[]>;
+    swpc_scales?:    Envelope<SWPCForecast>;
+    swpc_alerts?:    Envelope<SWPCAlert[]>;
+    usgs_quakes?:    Envelope<Quake[]>;
+    usgs_volcanoes?: Envelope<Volcano[]>;
   };
 }
 

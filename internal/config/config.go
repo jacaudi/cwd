@@ -19,6 +19,14 @@ import (
 var (
 	ugcRE = regexp.MustCompile(`^[A-Z]{2}[CZ]\d{3}$`)
 	wfoRE = regexp.MustCompile(`^[A-Z]{3}$`)
+	// SWPC product code regex. Accepts the documented allowlist namespace from
+	// internal/sources/swpc_alerts.go: K-series (K04A...K09A...K0n[AW]),
+	// P-series (P10A...P15A), WARK*/WATA*/RWAR/X-series, SUM*. The plan's
+	// first-draft regex ^[A-Z]{3,8}[0-9A-Z]?$ rejected all defaults() codes
+	// (K08A starts with one letter, not three) and was corrected before
+	// implementation. Total length 3-8: leading uppercase letter + 2-7
+	// uppercase-or-digit chars.
+	swpcProductRE = regexp.MustCompile(`^[A-Z][A-Z0-9]{2,7}$`)
 )
 
 // Config is the top-level configuration struct.
@@ -122,6 +130,9 @@ func LoadWithLogger(path string, logger *slog.Logger) (*Config, error) {
 	mergeSourceDefaults(cfg)
 
 	validateRegionFilter(cfg, logger)
+	validateSWPCProducts(cfg, logger)
+	validateSWPCWindow(cfg, logger)
+	validateSourceIntervalFloors(cfg, logger)
 
 	if err := validate(cfg); err != nil {
 		return nil, err
@@ -136,6 +147,49 @@ func validateRegionFilter(cfg *Config, logger *slog.Logger) {
 	rf := &cfg.Derived.Thresholds.RegionFilter
 	rf.UGCs = filterByRegex(rf.UGCs, ugcRE, "ugc", logger)
 	rf.WFOs = filterByRegex(rf.WFOs, wfoRE, "wfo", logger)
+}
+
+// validateSWPCProducts drops entries that don't match the SWPC product code
+// shape and WARNs. Mirrors validateRegionFilter's pattern.
+func validateSWPCProducts(cfg *Config, logger *slog.Logger) {
+	in := cfg.Derived.Thresholds.SWPCAlertProducts
+	out := make([]string, 0, len(in))
+	for _, p := range in {
+		if swpcProductRE.MatchString(p) {
+			out = append(out, p)
+		} else {
+			logger.Warn("config.swpc_alert_product_invalid", "value", p, "pattern", swpcProductRE.String())
+		}
+	}
+	cfg.Derived.Thresholds.SWPCAlertProducts = out
+}
+
+// validateSWPCWindow clamps non-positive window-hours to 24 and WARNs.
+func validateSWPCWindow(cfg *Config, logger *slog.Logger) {
+	if cfg.Derived.Thresholds.SWPCAlertWindowHours <= 0 {
+		logger.Warn("config.swpc_alert_window_clamped",
+			"value", cfg.Derived.Thresholds.SWPCAlertWindowHours,
+			"clamped_to", 24)
+		cfg.Derived.Thresholds.SWPCAlertWindowHours = 24
+	}
+}
+
+// validateSourceIntervalFloors WARNs (does not modify) for any enabled source
+// whose interval is under 10s — protects upstreams from over-polling without
+// overriding an operator's explicit choice.
+func validateSourceIntervalFloors(cfg *Config, logger *slog.Logger) {
+	const floor = 10 * time.Second
+	for name, src := range cfg.Sources {
+		if !src.IsEnabled() {
+			continue
+		}
+		if src.Interval > 0 && src.Interval < floor {
+			logger.Warn("config.source_interval_too_low",
+				"source", name,
+				"interval", src.Interval.String(),
+				"floor", floor.String())
+		}
+	}
 }
 
 func filterByRegex(in []string, re *regexp.Regexp, kind string, logger *slog.Logger) []string {

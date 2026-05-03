@@ -9,3 +9,18 @@ the captured-on dates document expected drift over time.
 | `alerts_active_mixed.json` | 2026-05-02 | Live capture, mixed event types |
 | `alerts_active_empty.json` | 2026-05-02 | Hand-crafted, zero features |
 | `alerts_active_tsunami.json` | 2026-05-02 | Synthetic TSU AWIPS prefix |
+
+## SWPC fixtures
+
+| File | Captured | Notes |
+|---|---|---|
+| `swpc_scales_typical.json` | 2026-05-02 | Live capture of noaa-scales.json; keys "0".."3" populated. Recapture if SWPC reshapes the upstream contract. |
+| `swpc_alerts_typical.json` | 2026-05-02 | Live capture of alerts.json; ~30-day rolling window with mixed K/P/WARK/SUM products. |
+
+## USGS fixtures
+
+| File | Captured | Notes |
+|---|---|---|
+| `usgs_volcanoes_typical.json` | 2026-05-02 | Live capture of getElevatedVolcanoes; non-NORMAL volcanoes only by upstream design. |
+| `usgs_quakes_typical.geojson` | 2026-05-02 | Live capture of significant_day.geojson. Feature count varies 0–20 depending on day. |
+| `usgs_quakes_empty.geojson` | 2026-05-02 | Hand-crafted, zero features. Locks the empty-day path. |

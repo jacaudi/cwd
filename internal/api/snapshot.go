@@ -34,18 +34,41 @@ func NewSnapshotHandler(c *cache.Cache, f sources.Filter) http.Handler {
 	return &snapshotHandler{cache: c, filter: f}
 }
 
+// snapshotSourceNames is the canonical wire-order for the snapshot map.
+// Iteration order doesn't change correctness (map encoding is unordered) but
+// the slice keeps the 5-source contract close to the handler so adding a
+// 6th source in a future phase only touches one place here.
+var snapshotSourceNames = []string{
+	sources.NWSAlertsName,
+	sources.SWPCScalesName,
+	sources.SWPCAlertsName,
+	sources.USGSQuakesName,
+	sources.USGSVolcanoesName,
+}
+
 func (h *snapshotHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp := SnapshotResponse{
 		ServerTime: time.Now().UTC(),
 		Sources:    map[string]Envelope{},
 	}
-	if env, ok := h.cache.Get(sources.NWSAlertsName); ok {
-		alerts, _ := env.Payload.([]sources.Alert)
-		resp.Sources[sources.NWSAlertsName] = Envelope{
+	for _, name := range snapshotSourceNames {
+		env, ok := h.cache.Get(name)
+		if !ok {
+			continue
+		}
+		payload := env.Payload
+		// Region filter applies only to nws_alerts (design §9 decision 9 —
+		// space-weather and global quake/volcano feeds aren't UGC/WFO-coded).
+		if name == sources.NWSAlertsName {
+			if alerts, ok := env.Payload.([]sources.Alert); ok {
+				payload = h.filter.Apply(alerts)
+			}
+		}
+		resp.Sources[name] = Envelope{
 			Source:    env.Source,
 			FetchedAt: env.FetchedAt,
 			ETag:      env.Validator,
-			Payload:   h.filter.Apply(alerts),
+			Payload:   payload,
 		}
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

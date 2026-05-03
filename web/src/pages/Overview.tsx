@@ -1,31 +1,16 @@
-import { useEffect, useRef } from 'react';
 import { Card, Space, Typography } from 'antd';
+import { useNavigate } from 'react-router-dom';
 import { AlertBadgeBar } from '../components/AlertBadgeBar';
-import { TsunamiPanel } from '../components/TsunamiPanel';
 import { useSnapshotStore } from '../store/snapshot';
-import { connect } from '../api/stream';
 
 export default function Overview() {
+  const navigate = useNavigate();
   const snapshot = useSnapshotStore((s) => s.snapshot);
-  const setSnapshot = useSnapshotStore((s) => s.setSnapshot);
-  const applyUpdate = useSnapshotStore((s) => s.applyUpdate);
-  const setConnection = useSnapshotStore((s) => s.setConnection);
-  const tsuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    let cancel: (() => void) | undefined;
-    void connect({
-      onSnapshot: (s) => {
-        setSnapshot(s);
-        setConnection('live');
-      },
-      onUpdate: (name, env) => applyUpdate(name, env),
-      onError: () => setConnection('error'),
-    }).then((c) => {
-      cancel = c;
-    });
-    return () => cancel?.();
-  }, [setSnapshot, applyUpdate, setConnection]);
+  // The SSE stream is opened once at the App level (see App.tsx). Overview
+  // (and every other route) reads from the shared snapshot store, so deep-
+  // links to other pages still get live data without each page wiring its
+  // own EventSource.
 
   const alerts = snapshot?.sources.nws_alerts?.payload ?? [];
   const fetchedAt = snapshot?.sources.nws_alerts?.fetchedAt;
@@ -43,12 +28,9 @@ export default function Overview() {
       >
         <AlertBadgeBar
           alerts={alerts}
-          onTsunamiClick={() => tsuRef.current?.scrollIntoView({ behavior: 'smooth' })}
+          onTsunamiClick={() => navigate('/events#tsunami')}
         />
       </Card>
-      <div ref={tsuRef}>
-        <TsunamiPanel alerts={alerts} />
-      </div>
     </Space>
   );
 }

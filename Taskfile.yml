@@ -100,18 +100,33 @@ tasks:
       - task: build
 
   smoke:
-    desc: Boot against real api.weather.gov for ~5 minutes; report /api/sources
+    desc: Boot against real upstreams for ~5 minutes; report all source health
     deps: [build:all]
     cmds:
       - |
         ./{{.BIN}} serve &
         PID=$!
         trap "kill $PID 2>/dev/null || true" EXIT
-        echo "PID=$PID; sleeping 60s for first fetch"
-        sleep 60
+        echo "PID=$PID; sleeping 90s for first fetch of slowest source"
+        sleep 90
         echo "---- /api/sources ----"
         curl -sS http://127.0.0.1:8765/api/sources | jq .
-        echo "---- /api/snapshot.sources.nws_alerts.payload | length ----"
-        curl -sS http://127.0.0.1:8765/api/snapshot | jq '.sources.nws_alerts.payload | length'
+        echo "---- per-source counts ----"
+        curl -sS http://127.0.0.1:8765/api/snapshot | jq '
+          .sources | to_entries | map({
+            (.key): (
+              if (.value.payload | type) == "array" then (.value.payload | length)
+              else (.value.payload.days | length)
+              end
+            )
+          }) | add'
+        echo "---- assert all 5 sources healthy ----"
+        curl -sS http://127.0.0.1:8765/api/sources | jq -e '
+          (.nws_alerts.consecutiveFailures == 0)
+          and (.swpc_scales.consecutiveFailures == 0)
+          and (.swpc_alerts.consecutiveFailures == 0)
+          and (.usgs_quakes.consecutiveFailures == 0)
+          and (.usgs_volcanoes.consecutiveFailures == 0)
+        ' > /dev/null && echo "OK: all 5 sources healthy" || (echo "FAIL: some source failing" && exit 1)
         echo "---- holding for 4 more minutes (Ctrl-C to stop early) ----"
         sleep 240
