@@ -22,3 +22,5 @@ the captured-on dates document expected drift over time.
 | File | Captured | Notes |
 |---|---|---|
 | `usgs_volcanoes_typical.json` | 2026-05-02 | Live capture of getElevatedVolcanoes; non-NORMAL volcanoes only by upstream design. |
+| `usgs_quakes_typical.geojson` | 2026-05-02 | Live capture of significant_day.geojson. Feature count varies 0–20 depending on day. |
+| `usgs_quakes_empty.geojson` | 2026-05-02 | Hand-crafted, zero features. Locks the empty-day path. |
