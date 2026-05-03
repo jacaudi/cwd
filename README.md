@@ -2,7 +2,9 @@
 
 A self-hostable replacement for [https://www.nco.ncep.noaa.gov/status/cwd/](https://www.nco.ncep.noaa.gov/status/cwd/).
 
-**Status:** Phase 1 — `nws_alerts` source live end-to-end (badge bar + tsunami panel + SSE stream + history endpoint + per-source health footer). Other sources (SWPC scales/alerts, USGS quakes/volcanoes) arrive in Phase 2.
+**Status:** Phase 2 — all 5 sources live end-to-end. `nws_alerts`, `swpc_scales`, `swpc_alerts`, `usgs_quakes`, `usgs_volcanoes` all running on the Phase 1 pipeline. SpaceWeather page (`/space`) renders a 3-day forecast cards block + alerts list. Events page (`/events`) renders the tsunami panel + significant earthquakes list + elevated volcanoes list. Overview's Tsunami badge deep-links to `/events#tsunami`. Footer SourceHealthIndicator shows 5 source tags.
+
+The HazSimp category map expansion (Tornado Watch, Flood Warning, etc.) is tracked in [issue #3](https://github.com/jacaudi/cwd/issues/3) for a future PR.
 
 ## Quick start
 
@@ -27,11 +29,29 @@ Default config path: `$XDG_CONFIG_HOME/cwd/config.yaml` (or `--config <path>`, o
 Source intervals and enable/disable can be overridden without touching YAML:
 
 ```bash
-CWD_SOURCES_NWS_ALERTS_INTERVAL=45s   # Go time.Duration; default 30s
-CWD_SOURCES_NWS_ALERTS_ENABLED=false  # disable a source entirely
+CWD_SOURCES_NWS_ALERTS_INTERVAL=45s
+CWD_SOURCES_NWS_ALERTS_ENABLED=false
+CWD_SOURCES_SWPC_SCALES_INTERVAL=120s
+CWD_SOURCES_SWPC_SCALES_ENABLED=false
+CWD_SOURCES_SWPC_ALERTS_INTERVAL=120s
+CWD_SOURCES_SWPC_ALERTS_ENABLED=false
+CWD_SOURCES_USGS_QUAKES_INTERVAL=60s
+CWD_SOURCES_USGS_QUAKES_ENABLED=false
+CWD_SOURCES_USGS_VOLCANOES_INTERVAL=10m
+CWD_SOURCES_USGS_VOLCANOES_ENABLED=false
 ```
 
 Pattern: `CWD_SOURCES_<UPPER_SNAKE_NAME>_<FIELD>`. Bad values log `config.env_parse_failed` (WARN) and fall back to the YAML value.
+
+### Per-source cadence
+
+| Source | Default interval | Validator | Notes |
+|---|---|---|---|
+| `nws_alerts` | 30s | sha256 content hash | api.weather.gov politeness |
+| `swpc_scales` | 60s | sha256 content hash | matches upstream max-age=60 |
+| `swpc_alerts` | 60s | sha256 content hash | 24h window + product allowlist |
+| `usgs_quakes` | 60s | upstream ETag | If-None-Match passthrough |
+| `usgs_volcanoes` | 5m | upstream ETag | NORMAL filtered server-side |
 
 ### Reverse proxy note (SSE)
 
@@ -53,7 +73,7 @@ task web:build      # frontend only → internal/webdist/dist/
 task web:dev        # Vite dev server (proxies /api to localhost:8765)
 task web:test       # frontend Vitest suite
 task web:typecheck  # TypeScript typecheck only
-task smoke          # boot against real api.weather.gov for ~5 min and report /api/sources
+task smoke          # boot against real upstreams for ~5 min; assert all 5 sources healthy
 task clean          # remove build artifacts
 ```
 
@@ -61,5 +81,7 @@ task clean          # remove build artifacts
 
 - Design (parent): `docs/plans/2026-05-01-self-hosted-cwd-design.md`
 - Phase 1 design: `docs/plans/2026-05-02-phase1-nws-alerts-design.md`
+- Phase 2 design: `docs/plans/2026-05-02-phase2-multi-source-design.md`
+- Phase 2 implementation: `docs/plans/2026-05-02-phase2-multi-source-implementation.md`
 - Recon: `docs/recon/2026-05-01-ncep-cwd-status-recon.md`
 - License: MIT
