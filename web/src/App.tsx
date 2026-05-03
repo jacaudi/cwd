@@ -12,6 +12,8 @@ import {
 } from "@ant-design/icons";
 
 import { api } from "./api/client";
+import { connect } from "./api/stream";
+import { useSnapshotStore } from "./store/snapshot";
 import type { ThemeMode, UIConfig, VersionInfo } from "./api/types";
 import { buildThemeConfig, persistTheme } from "./theme";
 import SettingsDrawer from "./components/SettingsDrawer";
@@ -46,6 +48,37 @@ export default function App({ initialThemeMode }: AppProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [serverVersion, setServerVersion] = useState<VersionInfo | null>(null);
   const [uiConfig, setUIConfig] = useState<UIConfig | null>(null);
+
+  const setSnapshot = useSnapshotStore((s) => s.setSnapshot);
+  const applyUpdate = useSnapshotStore((s) => s.applyUpdate);
+  const setConnection = useSnapshotStore((s) => s.setConnection);
+
+  // Open the live snapshot stream once for the whole app — every route
+  // (Overview, Hazards, Space, Events, History) reads from the shared
+  // snapshot store, so a single EventSource serves them all. Hoisting the
+  // lifecycle here means deep-links and hard-refreshes on non-Overview
+  // routes also get the initial /api/snapshot fetch + SSE updates.
+  useEffect(() => {
+    let cancel: (() => void) | undefined;
+    let unmounted = false;
+    void connect({
+      onSnapshot: (s) => {
+        setSnapshot(s);
+        setConnection('live');
+      },
+      onUpdate: (name, env) => applyUpdate(name, env),
+      onError: () => setConnection('error'),
+    }).then((c) => {
+      // If the component unmounted before connect resolved, tear down
+      // immediately so we never leak an EventSource.
+      if (unmounted) c();
+      else cancel = c;
+    });
+    return () => {
+      unmounted = true;
+      cancel?.();
+    };
+  }, [setSnapshot, applyUpdate, setConnection]);
 
   // First-paint: load server config + version. If user has no stored choice and the server
   // says a different default, adopt it. (loadStoredTheme already ran in main.tsx, so we

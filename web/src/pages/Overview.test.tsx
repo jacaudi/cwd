@@ -1,11 +1,20 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import Overview from './Overview';
 import { useSnapshotStore } from '../store/snapshot';
 
+// Spy on stream.connect so we can assert Overview does NOT open its own
+// EventSource — the lifecycle is owned by App after the Phase 2 hoist.
+const connectMock = vi.fn(async (_opts: unknown) => () => {});
+vi.mock('../api/stream', () => ({
+  connect: (opts: unknown) => connectMock(opts),
+}));
+
 describe('Overview page', () => {
   afterEach(() => {
+    cleanup();
+    connectMock.mockClear();
     vi.restoreAllMocks();
     useSnapshotStore.setState({ snapshot: null, connection: 'connecting' });
   });
@@ -21,21 +30,21 @@ describe('Overview page', () => {
     );
   }
 
-  it('renders badge bar after initial snapshot', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
+  it('does not call stream.connect — the SSE lifecycle is owned by App', async () => {
+    renderWithRouter();
+    // Give React a tick; the connect MUST NOT be invoked from Overview.
+    await new Promise((r) => setTimeout(r, 10));
+    expect(connectMock).not.toHaveBeenCalled();
+  });
+
+  it('renders badge bar from the shared snapshot store', async () => {
+    useSnapshotStore.setState({
+      snapshot: {
         serverTime: 't',
         sources: { nws_alerts: { source: 'nws_alerts', fetchedAt: 't', payload: [] } },
-      }),
-    }));
-    class FakeES {
-      addEventListener() {}
-      close() {}
-      onerror: any = null;
-    }
-    vi.stubGlobal('EventSource', FakeES as any);
-
+      },
+      connection: 'live',
+    });
     renderWithRouter();
     await waitFor(() => expect(screen.getByLabelText('Tornado')).toBeInTheDocument());
   });
@@ -57,9 +66,6 @@ describe('Overview page', () => {
       },
       connection: 'live',
     });
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ serverTime: 't', sources: {} }) }));
-    class FakeES { addEventListener() {} close() {} onerror: any = null; }
-    vi.stubGlobal('EventSource', FakeES as any);
 
     renderWithRouter();
     await screen.findByLabelText('Tsunami');
