@@ -16,3 +16,9 @@ the captured-on dates document expected drift over time.
 |---|---|---|
 | `swpc_scales_typical.json` | 2026-05-02 | Live capture of noaa-scales.json; keys "0".."3" populated. Recapture if SWPC reshapes the upstream contract. |
 | `swpc_alerts_typical.json` | 2026-05-02 | Live capture of alerts.json; ~30-day rolling window with mixed K/P/WARK/SUM products. |
+
+## USGS fixtures
+
+| File | Captured | Notes |
+|---|---|---|
+| `usgs_volcanoes_typical.json` | 2026-05-02 | Live capture of getElevatedVolcanoes; non-NORMAL volcanoes only by upstream design. |
