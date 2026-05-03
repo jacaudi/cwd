@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -9,7 +10,18 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
+
+// mustJSONString returns the JSON-encoded form of s (with surrounding quotes),
+// suitable for inline interpolation into a JSON literal in a test fixture.
+func mustJSONString(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
 
 func TestSWPCAlerts_AppliesAllowlistAndWindow(t *testing.T) {
 	body := []byte(`[
@@ -69,6 +81,33 @@ func TestSWPCAlerts_TruncatesMessageTo512(t *testing.T) {
 	}
 	if len(got[0].Message) != 512 {
 		t.Errorf("Message len = %d, want 512", len(got[0].Message))
+	}
+}
+
+// TestSWPCAlerts_TruncationIsUTF8Safe guards against a byte-boundary slice
+// splitting a multi-byte rune. We construct a message where a 2-byte rune ('é',
+// 0xC3 0xA9) starts at byte position swpcMessageMaxBytes-1, so a naive
+// msg[:swpcMessageMaxBytes] would keep the 0xC3 lead byte and drop the 0xA9
+// continuation, producing invalid UTF-8 at the tail.
+func TestSWPCAlerts_TruncationIsUTF8Safe(t *testing.T) {
+	// Pad with (swpcMessageMaxBytes-1) ASCII bytes, then 'é' (2 bytes), then more bytes.
+	// 'é' starts at byte index swpcMessageMaxBytes-1; its continuation lands at
+	// byte index swpcMessageMaxBytes (just past the cut).
+	pad := strings.Repeat("x", swpcMessageMaxBytes-1)
+	long := pad + "é" + strings.Repeat("y", 64)
+	body := []byte(`[{"product_id":"K08A","issue_datetime":"2026-05-02 10:00:00.000","message":` + mustJSONString(long) + `}]`)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	now := func() time.Time { return time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC) }
+	got, err := ParseSWPCAlerts(body, []string{"K08A"}, 24*time.Hour, now, logger)
+	if err != nil || len(got) != 1 {
+		t.Fatalf("parse: %v, len=%d", err, len(got))
+	}
+	if !utf8.ValidString(got[0].Message) {
+		t.Errorf("truncated Message is not valid UTF-8: % x", got[0].Message)
+	}
+	// The dropped invalid lead byte means truncated length is <= swpcMessageMaxBytes-1.
+	if len(got[0].Message) > swpcMessageMaxBytes {
+		t.Errorf("Message len = %d, want <= %d", len(got[0].Message), swpcMessageMaxBytes)
 	}
 }
 

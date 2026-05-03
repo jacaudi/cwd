@@ -52,13 +52,13 @@ export function VolcanoList({ volcanoes }: Props) {
               <Space size="small" wrap>
                 <Typography.Text type="secondary">{v.region}</Typography.Text>
                 <Tag
-                  color={ALERT_COLOR[v.alert]}
+                  color={ALERT_COLOR[v.alert] ?? 'default'}
                   data-alert={v.alert}
                   data-testid="volcano-alert-tag"
                 >
                   {v.alert}
                 </Tag>
-                <Tag color={COLOR_CHIP[v.color]}>{v.color}</Tag>
+                <Tag color={COLOR_CHIP[v.color] ?? 'default'}>{v.color}</Tag>
                 {v.updatedAt && (
                   <Typography.Text type="secondary">· {relative(v.updatedAt)}</Typography.Text>
                 )}

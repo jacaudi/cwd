@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -149,7 +150,10 @@ func ParseSWPCAlerts(body []byte, allow []string, window time.Duration, now func
 		}
 		msg := r.Message
 		if len(msg) > swpcMessageMaxBytes {
-			msg = msg[:swpcMessageMaxBytes]
+			// SWPC messages are ASCII in practice, but slice on a byte boundary
+			// can still split a multi-byte rune if upstream ever ships UTF-8.
+			// strings.ToValidUTF8 drops the broken trailing sequence (if any).
+			msg = strings.ToValidUTF8(msg[:swpcMessageMaxBytes], "")
 		}
 		entry := SWPCAlert{
 			Code:    r.ProductID,

@@ -4,6 +4,8 @@ A self-hostable replacement for [https://www.nco.ncep.noaa.gov/status/cwd/](http
 
 **Status:** Phase 2 — all 5 sources live end-to-end. `nws_alerts`, `swpc_scales`, `swpc_alerts`, `usgs_quakes`, `usgs_volcanoes` all running on the Phase 1 pipeline. SpaceWeather page (`/space`) renders a 3-day forecast cards block + alerts list. Events page (`/events`) renders the tsunami panel + significant earthquakes list + elevated volcanoes list. Overview's Tsunami badge deep-links to `/events#tsunami`. Footer SourceHealthIndicator shows 5 source tags.
 
+The `/api/history` endpoint currently surfaces only `nws_alerts`. Per-source history for the SWPC and USGS sources is a Phase 3+ follow-up; until then `/api/snapshot` and `/api/stream` are the canonical multi-source views.
+
 The HazSimp category map expansion (Tornado Watch, Flood Warning, etc.) is tracked in [issue #3](https://github.com/jacaudi/cwd/issues/3) for a future PR.
 
 ## Quick start

@@ -54,4 +54,22 @@ describe('VolcanoList', () => {
     expect(link.target).toBe('_blank');
     expect(link.rel).toContain('noopener');
   });
+
+  // Guards against an upstream introducing a new AlertLevel/ColorCode value
+  // we haven't mapped — the chips should still render with antd's `default`
+  // color (a defined fallback) rather than passing `undefined` to <Tag color>,
+  // which produces an unstyled `ant-tag` chip with no color class.
+  it('falls back to antd default color when alert/color values are unknown', () => {
+    const rogue = mk({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      alert: 'FUTURE_LEVEL' as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      color: 'PURPLE' as any,
+    });
+    expect(() => render(<VolcanoList volcanoes={[rogue]} />)).not.toThrow();
+    const alertTag = screen.getByTestId('volcano-alert-tag');
+    expect(alertTag.className).toContain('ant-tag-default');
+    const colorTag = screen.getByText('PURPLE');
+    expect(colorTag.className).toContain('ant-tag-default');
+  });
 });
