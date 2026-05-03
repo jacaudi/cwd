@@ -228,7 +228,17 @@ func (s *SWPCAlerts) Fetch(ctx context.Context) (FetchResult, error) {
 	if err != nil {
 		return FetchResult{}, err
 	}
-	sum := sha256.Sum256(body)
+	// Hash the parsed payload (not the raw body) so the validator changes when
+	// the window filter ages an alert out — even if upstream stops publishing
+	// updates and the body bytes stay identical. Otherwise cache.Set sees an
+	// unchanged validator and never broadcasts the disappearance to SSE clients.
+	// json.Marshal of []SWPCAlert is canonical: slice order is preserved by the
+	// parser and struct field order is fixed at compile time.
+	canon, err := json.Marshal(alerts)
+	if err != nil {
+		return FetchResult{}, fmt.Errorf("swpc_alerts: marshal payload for validator: %w", err)
+	}
+	sum := sha256.Sum256(canon)
 	return FetchResult{
 		Payload:   alerts,
 		Validator: "sha256:" + hex.EncodeToString(sum[:]),
