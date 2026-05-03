@@ -211,6 +211,76 @@ func TestLoadWithLogger_NilLoggerFallsBack(t *testing.T) {
 	}
 }
 
+func TestValidateSWPCProducts_DropsMalformedAndWARNs(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	cfg := &Config{
+		Server: ServerConfig{Bind: "127.0.0.1:0", LogLevel: "info", LogFormat: "json"},
+		UI:     UIConfig{DefaultTheme: "dark", DefaultLanding: "/", EnableHistory: true},
+		Store:  StoreConfig{Path: "/tmp/x.db", RetentionDays: 30},
+		Images: ImagesConfig{DefaultMode: "lazy"},
+		Derived: DerivedConfig{Thresholds: ThresholdsConfig{
+			SWPCAlertWindowHours: 24,
+			SWPCAlertProducts:    []string{"K08A", "lowercase", "K05A;DROP", "P12A", "WARK04W"},
+		}},
+	}
+	validateSWPCProducts(cfg, logger)
+	got := cfg.Derived.Thresholds.SWPCAlertProducts
+	want := []string{"K08A", "P12A", "WARK04W"}
+	if !sameStrings(got, want) {
+		t.Errorf("kept = %v, want %v", got, want)
+	}
+	if !bytes.Contains(buf.Bytes(), []byte("config.swpc_alert_product_invalid")) {
+		t.Errorf("expected WARN, got: %s", buf.String())
+	}
+}
+
+func TestValidateSWPCWindow_ClampsAndWARNs(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	cfg := &Config{Derived: DerivedConfig{Thresholds: ThresholdsConfig{SWPCAlertWindowHours: -3}}}
+	validateSWPCWindow(cfg, logger)
+	if cfg.Derived.Thresholds.SWPCAlertWindowHours != 24 {
+		t.Errorf("clamp failed: got %d", cfg.Derived.Thresholds.SWPCAlertWindowHours)
+	}
+	if !bytes.Contains(buf.Bytes(), []byte("config.swpc_alert_window_clamped")) {
+		t.Errorf("expected WARN, got: %s", buf.String())
+	}
+}
+
+func TestValidateSourceIntervalFloors_WARNUnder10s(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	enabled := true
+	cfg := &Config{Sources: map[string]SourceConfig{
+		"nws_alerts":  {Interval: 5 * time.Second, Enabled: &enabled},
+		"swpc_scales": {Interval: 60 * time.Second, Enabled: &enabled},
+	}}
+	validateSourceIntervalFloors(cfg, logger)
+	if !bytes.Contains(buf.Bytes(), []byte("config.source_interval_too_low")) {
+		t.Errorf("expected WARN for 5s interval, got: %s", buf.String())
+	}
+	if bytes.Count(buf.Bytes(), []byte("config.source_interval_too_low")) != 1 {
+		t.Errorf("WARN should fire once (only the 5s source), got: %s", buf.String())
+	}
+	// Values must NOT be clamped — operator override stands.
+	if cfg.Sources["nws_alerts"].Interval != 5*time.Second {
+		t.Errorf("interval mutated: %v", cfg.Sources["nws_alerts"].Interval)
+	}
+}
+
+func sameStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestRegionFilter_DropsInvalid(t *testing.T) {
 	buf := &bytes.Buffer{}
 	logger := slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
