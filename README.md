@@ -2,7 +2,7 @@
 
 A self-hostable replacement for [https://www.nco.ncep.noaa.gov/status/cwd/](https://www.nco.ncep.noaa.gov/status/cwd/).
 
-**Status:** Phase 2 — all 5 sources live end-to-end. `nws_alerts`, `swpc_scales`, `swpc_alerts`, `usgs_quakes`, `usgs_volcanoes` all running on the Phase 1 pipeline. SpaceWeather page (`/space`) renders a 3-day forecast cards block + alerts list. Events page (`/events`) renders the tsunami panel + significant earthquakes list + elevated volcanoes list. Overview's Tsunami badge deep-links to `/events#tsunami`. Footer SourceHealthIndicator shows 5 source tags.
+**Status:** Phase 3 — image proxy + Hazards page live. All 5 data sources from Phase 2 (`nws_alerts`, `swpc_scales`, `swpc_alerts`, `usgs_quakes`, `usgs_volcanoes`) continue to run on the Phase 1 pipeline. SpaceWeather page (`/space`) renders a 3-day forecast cards block + alerts list. Events page (`/events`) renders the tsunami panel + significant earthquakes list + elevated volcanoes list. Overview's Tsunami badge deep-links to `/events#tsunami`. Footer SourceHealthIndicator shows 5 source tags. The new `/hazards` page renders 7 category cards (Severe Storms, Wildfire, Excessive Rainfall, Winter, Heat, Tropical, Flooding) backed by 20 server-proxied NCEP/NWS/NHC/Navy maps under `/img/{source}/{name}`.
 
 The `/api/history` endpoint currently surfaces only `nws_alerts`. Per-source history for the SWPC and USGS sources is a Phase 3+ follow-up; until then `/api/snapshot` and `/api/stream` are the canonical multi-source views.
 
@@ -54,6 +54,56 @@ Pattern: `CWD_SOURCES_<UPPER_SNAKE_NAME>_<FIELD>`. Bad values log `config.env_pa
 | `swpc_alerts` | 60s | sha256 content hash | 24h window + product allowlist |
 | `usgs_quakes` | 60s | upstream ETag | If-None-Match passthrough |
 | `usgs_volcanoes` | 5m | upstream ETag | NORMAL filtered server-side |
+
+### Phase 3 — Image proxy + Hazards page
+
+Live now: server-side proxy in front of 20 NCEP/NWS/NHC/Navy static maps,
+served at `/img/{source}/{name}`. Lazy-by-default with an opt-in pre-warm
+poller per image. The `/hazards` page renders seven category cards (Severe
+Storms, Wildfire, Excessive Rainfall, Winter, Heat, Tropical, Flooding) with
+Segmented Day 1/2/3 controls and AntD `Image.PreviewGroup` lightbox.
+
+#### Operator knobs (env)
+
+```
+CWD_IMAGES_CACHE_DIR=/var/lib/cwd/images
+CWD_IMAGES_DISK_MAX_BYTES=524288000
+CWD_IMAGES_HOT_MAX_BYTES=67108864
+CWD_IMAGES_HOT_MAX_ENTRIES=256
+CWD_IMAGES_REFRESH_INTERVAL=5m
+CWD_IMAGES_PREWARM=spc.day1otlk,spc.day2otlk,spc.day3otlk,nhc.atl_7d
+# Per-image interval override; "__" is the dot separator in the registry key.
+CWD_IMAGES_IMAGE_INTERVALS_SPC__DAY1OTLK=90s
+CWD_IMAGES_IMAGE_INTERVALS_NHC__ATL_7D=1h
+```
+
+#### Image registry summary
+
+| Category            | Keys                                                    | Default cadence |
+|---------------------|---------------------------------------------------------|-----------------|
+| Severe Storms       | `spc.day1otlk`, `spc.day2otlk`, `spc.day3otlk`         | 2m / 5m / 10m   |
+| Wildfire            | `spc.day1otlk_fire`, `spc.day2otlk_fire`, `spc.day38otlk_fire` | 5m / 10m / 30m |
+| Excessive Rainfall  | `wpc.ero_day1..3`                                       | 5m / 10m / 15m  |
+| Winter              | `wpc.wssi_day1..3`                                      | 10m / 15m / 20m |
+| Heat                | `wpc.heatrisk_day1..3`                                  | 15m / 20m / 30m |
+| Tropical            | `nhc.atl_7d`, `nhc.epac_7d`, `nhc.cpac_7d`, `navy.jtwc_abpw` | 30m each |
+| Flooding            | `nwc.fho_national`                                      | 30m             |
+
+`/api/sources` surfaces one `image:<key>` entry per registered key; the SPA
+displays a "stale Xm" Tag when `consecutiveFailures > 0`.
+
+`/img/{source}/{name}` returns the upstream bytes verbatim with
+`Cache-Control: public, max-age=60, stale-while-revalidate=900`. When the
+proxy is serving stale bytes (upstream currently failing), the response
+includes `Warning: 110 cwd "stale Xm"`.
+
+#### SSE invalidation
+
+When the proxy's diff-on-write detects a real content change, it broadcasts
+an `image.invalidate.update` SSE event with `{source, name, fetchedAt}`. The
+SPA's `useSnapshotStore.imageRefresh[<source>.<name>]` map updates, the
+`<Image>` element keys on it, React unmount-remounts, the browser refetches
+`/img/...`, and the server's hot tier serves the fresh bytes immediately.
 
 ### Reverse proxy note (SSE)
 
