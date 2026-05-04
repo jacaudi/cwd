@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   Envelope,
   Alert,
+  ImageInvalidate,
   Quake,
   SWPCAlert,
   SWPCForecast,
@@ -25,18 +26,32 @@ export interface SourcePayloadMap {
 interface State {
   snapshot: Snapshot | null;
   connection: Connection;
+  // imageRefresh maps "<source>.<name>" → fetchedAt ISO string. Components
+  // key their <Image> element on this so SSE-driven invalidations force a
+  // browser-side reload (React unmount-remount of <img>).
+  imageRefresh: Record<string, string>;
   setSnapshot: (s: Snapshot) => void;
   applyUpdate: <K extends keyof SourcePayloadMap>(
     source: K,
     env: Envelope<SourcePayloadMap[K]>,
   ) => void;
+  applyImageInvalidate: (ev: ImageInvalidate) => void;
   setConnection: (c: Connection) => void;
 }
 
 export const useSnapshotStore = create<State>((set) => ({
   snapshot: null,
   connection: 'connecting',
-  setSnapshot: (s) => set({ snapshot: s }),
+  imageRefresh: {},
+  setSnapshot: (s) => set(() => {
+    const nextRefresh: Record<string, string> = {};
+    const inv = s.sources['image.invalidate'];
+    if (inv) {
+      const ev = inv.payload;
+      nextRefresh[`${ev.source}.${ev.name}`] = ev.fetchedAt;
+    }
+    return { snapshot: s, imageRefresh: nextRefresh };
+  }),
   applyUpdate: (source, env) =>
     set((prev) => {
       const base: Snapshot =
@@ -48,5 +63,9 @@ export const useSnapshotStore = create<State>((set) => ({
         } as Snapshot,
       };
     }),
+  applyImageInvalidate: (ev) =>
+    set((prev) => ({
+      imageRefresh: { ...prev.imageRefresh, [`${ev.source}.${ev.name}`]: ev.fetchedAt },
+    })),
   setConnection: (c) => set({ connection: c }),
 }));

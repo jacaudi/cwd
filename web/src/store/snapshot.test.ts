@@ -4,7 +4,7 @@ import { useSnapshotStore } from './snapshot';
 describe('snapshot store', () => {
   beforeEach(() => {
     // Reset store state between tests.
-    useSnapshotStore.setState({ snapshot: null, connection: 'connecting' });
+    useSnapshotStore.setState({ snapshot: null, connection: 'connecting', imageRefresh: {} });
   });
 
   it('starts empty', () => {
@@ -115,5 +115,31 @@ describe('snapshot store', () => {
     const env = useSnapshotStore.getState().snapshot?.sources.nws_alerts;
     expect(env?.fetchedAt).toBe('b');
     expect(env?.payload.length).toBe(1);
+  });
+
+  it('routes image.invalidate events into imageRefresh', () => {
+    useSnapshotStore.setState({ snapshot: { serverTime: 't', sources: {} }, connection: 'live', imageRefresh: {} });
+    useSnapshotStore.getState().applyImageInvalidate({
+      source: 'spc', name: 'day1otlk', fetchedAt: '2026-05-03T22:14:33Z',
+    });
+    useSnapshotStore.getState().applyImageInvalidate({
+      source: 'nhc', name: 'atl_7d', fetchedAt: '2026-05-03T22:14:34Z',
+    });
+    const refresh = useSnapshotStore.getState().imageRefresh;
+    expect(refresh['spc.day1otlk']).toBe('2026-05-03T22:14:33Z');
+    expect(refresh['nhc.atl_7d']).toBe('2026-05-03T22:14:34Z');
+  });
+
+  it('seeds imageRefresh from snapshot.sources["image.invalidate"]', () => {
+    useSnapshotStore.getState().setSnapshot({
+      serverTime: 't',
+      sources: {
+        'image.invalidate': {
+          source: 'image.invalidate', fetchedAt: 't',
+          payload: { source: 'spc', name: 'day1otlk', fetchedAt: '2026-05-03T22:14:33Z' },
+        },
+      },
+    });
+    expect(useSnapshotStore.getState().imageRefresh['spc.day1otlk']).toBe('2026-05-03T22:14:33Z');
   });
 });

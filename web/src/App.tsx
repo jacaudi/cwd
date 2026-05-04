@@ -51,6 +51,7 @@ export default function App({ initialThemeMode }: AppProps) {
 
   const setSnapshot = useSnapshotStore((s) => s.setSnapshot);
   const applyUpdate = useSnapshotStore((s) => s.applyUpdate);
+  const applyImageInvalidate = useSnapshotStore((s) => s.applyImageInvalidate);
   const setConnection = useSnapshotStore((s) => s.setConnection);
 
   // Open the live snapshot stream once for the whole app — every route
@@ -67,6 +68,7 @@ export default function App({ initialThemeMode }: AppProps) {
         setConnection('live');
       },
       onUpdate: (name, env) => applyUpdate(name, env),
+      onImageInvalidate: (ev) => applyImageInvalidate(ev),
       onError: () => setConnection('error'),
     }).then((c) => {
       // If the component unmounted before connect resolved, tear down
@@ -78,7 +80,7 @@ export default function App({ initialThemeMode }: AppProps) {
       unmounted = true;
       cancel?.();
     };
-  }, [setSnapshot, applyUpdate, setConnection]);
+  }, [setSnapshot, applyUpdate, applyImageInvalidate, setConnection]);
 
   // First-paint: load server config + version. If user has no stored choice and the server
   // says a different default, adopt it. (loadStoredTheme already ran in main.tsx, so we
