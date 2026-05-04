@@ -8,10 +8,6 @@ store:
   path: "/tmp/cwd.db"
   retention_days: 7
 
-cache:
-  image_dir: "/tmp/cwd-img"
-  image_max_bytes: 1048576
-
 sources:
   nws_alerts:     { interval: "30s", enabled: true }
   swpc_scales:    { interval: "60s", enabled: true }
@@ -20,7 +16,12 @@ sources:
   usgs_volcanoes: { interval: "5m",  enabled: true }
 
 images:
-  default_mode: "lazy"
+  cache_dir: "/tmp/cwd-images"
+  disk_max_bytes: 524288000
+  hot_max_bytes: 67108864
+  hot_max_entries: 256
+  refresh_interval: "5m"
+  image_intervals: {}
   prewarm: []
 
 derived:

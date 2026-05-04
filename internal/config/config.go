@@ -33,7 +33,6 @@ var (
 type Config struct {
 	Server  ServerConfig            `yaml:"server"`
 	Store   StoreConfig             `yaml:"store"`
-	Cache   CacheConfig             `yaml:"cache"`
 	Sources map[string]SourceConfig `yaml:"sources"`
 	Images  ImagesConfig            `yaml:"images"`
 	Derived DerivedConfig           `yaml:"derived"`
@@ -54,12 +53,6 @@ type StoreConfig struct {
 	RetentionDays int    `yaml:"retention_days"`
 }
 
-// CacheConfig holds image cache settings.
-type CacheConfig struct {
-	ImageDir      string `yaml:"image_dir"`
-	ImageMaxBytes int64  `yaml:"image_max_bytes"`
-}
-
 // SourceConfig holds per-source polling settings.
 type SourceConfig struct {
 	Interval time.Duration `yaml:"interval"`
@@ -73,10 +66,59 @@ func (s SourceConfig) IsEnabled() bool { return s.Enabled == nil || *s.Enabled }
 // boolPtr returns a pointer to b, useful for setting *bool fields in struct literals.
 func boolPtr(b bool) *bool { return &b }
 
-// ImagesConfig holds image loading settings.
+// ImagesConfig holds image proxy settings. See design §8.
 type ImagesConfig struct {
-	DefaultMode string   `yaml:"default_mode"`
-	Prewarm     []string `yaml:"prewarm"`
+	// CacheDir is the disk-store root. Created with 0700 if missing. Boot
+	// fails if the directory is not writable.
+	CacheDir string `yaml:"cache_dir"`
+	// DiskMaxBytes caps the on-disk store. Must be > 0.
+	DiskMaxBytes int64 `yaml:"disk_max_bytes"`
+	// HotMaxBytes caps the in-memory hot tier. 0 disables the tier (disk-only).
+	HotMaxBytes int64 `yaml:"hot_max_bytes"`
+	// HotMaxEntries caps the hot tier by entry count.
+	HotMaxEntries int `yaml:"hot_max_entries"`
+	// RefreshInterval is the global default cadence (per-image entries override).
+	// Below the 60s politeness floor, validateImagesRefreshInterval clamps + WARNs.
+	RefreshInterval time.Duration `yaml:"refresh_interval"`
+	// ImageIntervals overrides the per-image cadence by dot key (e.g.
+	// "spc.day1otlk": 90s). Values below 60s are clamped + logged.
+	ImageIntervals map[string]time.Duration `yaml:"image_intervals"`
+	// Prewarm lists registry keys that should be polled in the background.
+	// Unknown keys are dropped at boot with a WARN.
+	Prewarm []string `yaml:"prewarm"`
+}
+
+// knownImageKeys returns the set of registry keys recognized by validateImagesPrewarm.
+//
+// IMPORTANT: This list MUST stay in sync with imageproxy.Registry's keys (see
+// internal/imageproxy/registry.go). It is intentionally NOT imported from the
+// imageproxy package because Phase 3 Task 4 will introduce an
+// imageproxy → config dependency, which would create an import cycle if this
+// package referenced imageproxy. When adding/removing a registry image, update
+// both this list AND the imageproxy.Registry.
+func knownImageKeys() map[string]struct{} {
+	return map[string]struct{}{
+		"spc.day1otlk":       {},
+		"spc.day2otlk":       {},
+		"spc.day3otlk":       {},
+		"spc.day1otlk_fire":  {},
+		"spc.day2otlk_fire":  {},
+		"spc.day38otlk_fire": {},
+		"wpc.ero_day1":       {},
+		"wpc.ero_day2":       {},
+		"wpc.ero_day3":       {},
+		"wpc.wssi_day1":      {},
+		"wpc.wssi_day2":      {},
+		"wpc.wssi_day3":      {},
+		"wpc.heatrisk_day1":  {},
+		"wpc.heatrisk_day2":  {},
+		"wpc.heatrisk_day3":  {},
+		"nhc.atl_7d":         {},
+		"nhc.epac_7d":        {},
+		"nhc.cpac_7d":        {},
+		"navy.jtwc_abpw":     {},
+		"nwc.fho_national":   {},
+	}
 }
 
 // DerivedConfig holds computed/threshold settings.
@@ -133,6 +175,9 @@ func LoadWithLogger(path string, logger *slog.Logger) (*Config, error) {
 	validateSWPCProducts(cfg, logger)
 	validateSWPCWindow(cfg, logger)
 	validateSourceIntervalFloors(cfg, logger)
+	validateImagesRefreshInterval(cfg, logger)
+	validateImageIntervals(cfg, logger)
+	validateImagesPrewarm(cfg, logger)
 
 	if err := validate(cfg); err != nil {
 		return nil, err
@@ -192,6 +237,47 @@ func validateSourceIntervalFloors(cfg *Config, logger *slog.Logger) {
 	}
 }
 
+// validateImagesRefreshInterval clamps refresh_interval below the 60s
+// politeness floor and WARNs.
+func validateImagesRefreshInterval(cfg *Config, logger *slog.Logger) {
+	const floor = 60 * time.Second
+	if cfg.Images.RefreshInterval > 0 && cfg.Images.RefreshInterval < floor {
+		logger.Warn("config.images_refresh_interval_clamped",
+			"value", cfg.Images.RefreshInterval.String(),
+			"floor", floor.String())
+		cfg.Images.RefreshInterval = floor
+	}
+}
+
+// validateImageIntervals clamps per-image intervals below 60s + WARNs.
+func validateImageIntervals(cfg *Config, logger *slog.Logger) {
+	const floor = 60 * time.Second
+	for k, d := range cfg.Images.ImageIntervals {
+		if d > 0 && d < floor {
+			logger.Warn("config.image_interval_clamped",
+				"key", k, "value", d.String(), "floor", floor.String())
+			cfg.Images.ImageIntervals[k] = floor
+		}
+	}
+}
+
+// validateImagesPrewarm drops prewarm entries that don't appear in the
+// known image-key set and WARNs. Mirrors validateRegionFilter /
+// validateSWPCProducts. See knownImageKeys for the import-cycle rationale.
+func validateImagesPrewarm(cfg *Config, logger *slog.Logger) {
+	known := knownImageKeys()
+	in := cfg.Images.Prewarm
+	out := make([]string, 0, len(in))
+	for _, k := range in {
+		if _, ok := known[k]; ok {
+			out = append(out, k)
+		} else {
+			logger.Warn("config.images_prewarm_unknown_key", "key", k)
+		}
+	}
+	cfg.Images.Prewarm = out
+}
+
 func filterByRegex(in []string, re *regexp.Regexp, kind string, logger *slog.Logger) []string {
 	out := make([]string, 0, len(in))
 	for _, s := range in {
@@ -225,10 +311,6 @@ func defaults() *Config {
 			Path:          xdgState("cwd/cwd.db"),
 			RetentionDays: 30,
 		},
-		Cache: CacheConfig{
-			ImageDir:      xdgCache("cwd/img"),
-			ImageMaxBytes: 524_288_000,
-		},
 		Sources: map[string]SourceConfig{
 			"nws_alerts":     {Interval: 30 * time.Second, Enabled: boolPtr(true)},
 			"swpc_scales":    {Interval: 60 * time.Second, Enabled: boolPtr(true)},
@@ -236,7 +318,19 @@ func defaults() *Config {
 			"usgs_quakes":    {Interval: 60 * time.Second, Enabled: boolPtr(true)},
 			"usgs_volcanoes": {Interval: 5 * time.Minute, Enabled: boolPtr(true)},
 		},
-		Images: ImagesConfig{DefaultMode: "lazy"},
+		Images: ImagesConfig{
+			CacheDir:        xdgState("cwd/images"),
+			DiskMaxBytes:    524_288_000, // 500 MiB
+			HotMaxBytes:     67_108_864,  // 64 MiB
+			HotMaxEntries:   256,
+			RefreshInterval: 5 * time.Minute,
+			ImageIntervals:  map[string]time.Duration{},
+			// Default prewarm list — must stay in sync with
+			// imageproxy.DefaultPrewarmKeys(). Hardcoded as a literal here to
+			// avoid an import cycle: Phase 3 Task 4 will introduce
+			// imageproxy → config, so config cannot import imageproxy.
+			Prewarm: []string{"spc.day1otlk", "spc.day2otlk", "spc.day3otlk", "nhc.atl_7d"},
+		},
 		Derived: DerivedConfig{
 			Thresholds: ThresholdsConfig{
 				SWPCAlertWindowHours: 24,
@@ -275,8 +369,13 @@ func mergeSourceDefaults(cfg *Config) {
 
 // applyEnvOverrides walks CWD_* env variables and writes them into matching string/int/bool fields.
 // Naming convention: CWD_<SECTION>_<FIELD>, e.g. CWD_SERVER_BIND, CWD_UI_DEFAULT_THEME.
-// Only top-level scalar fields under Server, Store, Cache, Images, UI are supported.
+// Only top-level scalar fields under Server, Store, Images, UI are supported via reflection.
 // Per-source overrides use CWD_SOURCES_<UPPER_SOURCE_NAME>_INTERVAL and CWD_SOURCES_<UPPER_SOURCE_NAME>_ENABLED.
+// Slice + nested-map fields under Images are handled explicitly:
+//   - CWD_IMAGES_PREWARM (comma-separated registry keys; replaces the entire list).
+//   - CWD_IMAGES_IMAGE_INTERVALS_<KEY> (duration; "__" in <KEY> is the dot
+//     separator, e.g. CWD_IMAGES_IMAGE_INTERVALS_SPC__DAY1OTLK_FIRE → spc.day1otlk_fire).
+//
 // Parse failures are logged as WARN via logger; bad values fall back to the current (YAML-supplied) value.
 func applyEnvOverrides(cfg *Config, logger *slog.Logger) {
 	apply := func(prefix string, v reflect.Value) {
@@ -314,9 +413,48 @@ func applyEnvOverrides(cfg *Config, logger *slog.Logger) {
 	}
 	apply("server", reflect.ValueOf(&cfg.Server).Elem())
 	apply("store", reflect.ValueOf(&cfg.Store).Elem())
-	apply("cache", reflect.ValueOf(&cfg.Cache).Elem())
 	apply("images", reflect.ValueOf(&cfg.Images).Elem())
 	apply("ui", reflect.ValueOf(&cfg.UI).Elem())
+
+	// Images.Prewarm — comma-separated registry keys; replaces the entire list.
+	if v, ok := os.LookupEnv("CWD_IMAGES_PREWARM"); ok {
+		parts := strings.Split(v, ",")
+		out := make([]string, 0, len(parts))
+		for _, p := range parts {
+			if t := strings.TrimSpace(p); t != "" {
+				out = append(out, t)
+			}
+		}
+		cfg.Images.Prewarm = out
+	}
+
+	// Images.ImageIntervals — CWD_IMAGES_IMAGE_INTERVALS_<KEY> with "__" as
+	// the dot separator. Example: CWD_IMAGES_IMAGE_INTERVALS_SPC__DAY1OTLK_FIRE=90s
+	// → cfg.Images.ImageIntervals["spc.day1otlk_fire"] = 90s.
+	const intervalsPrefix = "CWD_IMAGES_IMAGE_INTERVALS_"
+	if cfg.Images.ImageIntervals == nil {
+		cfg.Images.ImageIntervals = map[string]time.Duration{}
+	}
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, intervalsPrefix) {
+			continue
+		}
+		eq := strings.IndexByte(kv, '=')
+		if eq < 0 {
+			continue
+		}
+		name := kv[:eq]
+		val := kv[eq+1:]
+		rest := name[len(intervalsPrefix):]
+		// Convert UPPER+__ to lower+. (single-underscore stays in segment).
+		key := strings.ToLower(strings.ReplaceAll(rest, "__", "."))
+		d, perr := time.ParseDuration(val)
+		if perr != nil {
+			logger.Warn("config.env_parse_failed", "key", name, "value", val, "err", perr.Error())
+			continue
+		}
+		cfg.Images.ImageIntervals[key] = d
+	}
 
 	// Per-source overrides: CWD_SOURCES_<UPPER_SOURCE_NAME>_INTERVAL and _ENABLED.
 	for name, src := range cfg.Sources {
@@ -362,13 +500,20 @@ func validate(cfg *Config) error {
 	default:
 		return fmt.Errorf("ui.default_theme must be dark|light|auto, got %q", cfg.UI.DefaultTheme)
 	}
-	switch cfg.Images.DefaultMode {
-	case "lazy", "prewarm":
-	default:
-		return fmt.Errorf("images.default_mode must be lazy|prewarm, got %q", cfg.Images.DefaultMode)
-	}
 	if cfg.Store.RetentionDays <= 0 {
 		return errors.New("store.retention_days must be > 0")
+	}
+	if cfg.Images.DiskMaxBytes <= 0 {
+		return errors.New("images.disk_max_bytes must be > 0")
+	}
+	if cfg.Images.HotMaxBytes < 0 {
+		return errors.New("images.hot_max_bytes must be >= 0 (0 disables hot tier)")
+	}
+	if cfg.Images.HotMaxEntries <= 0 {
+		return errors.New("images.hot_max_entries must be > 0")
+	}
+	if cfg.Images.CacheDir == "" {
+		return errors.New("images.cache_dir must be set")
 	}
 	return nil
 }
@@ -379,16 +524,6 @@ func xdgState(rel string) string {
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		return filepath.Join(home, ".local/state", rel)
-	}
-	return "./" + rel
-}
-
-func xdgCache(rel string) string {
-	if v := os.Getenv("XDG_CACHE_HOME"); v != "" {
-		return filepath.Join(v, rel)
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".cache", rel)
 	}
 	return "./" + rel
 }

@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -28,8 +29,8 @@ func TestLoadMinimalAppliesDefaults(t *testing.T) {
 	if cfg.Store.RetentionDays != 30 {
 		t.Errorf("Store.RetentionDays default = %d, want 30", cfg.Store.RetentionDays)
 	}
-	if cfg.Cache.ImageMaxBytes != 524288000 {
-		t.Errorf("Cache.ImageMaxBytes default = %d, want 524288000", cfg.Cache.ImageMaxBytes)
+	if cfg.Images.DiskMaxBytes != 524288000 {
+		t.Errorf("Images.DiskMaxBytes default = %d, want 524288000", cfg.Images.DiskMaxBytes)
 	}
 	if cfg.UI.DefaultTheme != "dark" {
 		t.Errorf("UI.DefaultTheme default = %q, want dark", cfg.UI.DefaultTheme)
@@ -160,9 +161,10 @@ func TestXDGPathsHandleTrailingSlash(t *testing.T) {
 	if cfg.Store.Path != wantStore {
 		t.Errorf("Store.Path = %q, want %q", cfg.Store.Path, wantStore)
 	}
-	wantCache := filepath.Join("/tmp/cache-with-slash", "cwd/img")
-	if cfg.Cache.ImageDir != wantCache {
-		t.Errorf("Cache.ImageDir = %q, want %q", cfg.Cache.ImageDir, wantCache)
+	// Images.CacheDir uses XDG_STATE_HOME (the proxy is durable cache, not throwaway).
+	wantImages := filepath.Join("/tmp/with-slash", "cwd/images")
+	if cfg.Images.CacheDir != wantImages {
+		t.Errorf("Images.CacheDir = %q, want %q", cfg.Images.CacheDir, wantImages)
 	}
 }
 
@@ -218,7 +220,6 @@ func TestValidateSWPCProducts_DropsMalformedAndWARNs(t *testing.T) {
 		Server: ServerConfig{Bind: "127.0.0.1:0", LogLevel: "info", LogFormat: "json"},
 		UI:     UIConfig{DefaultTheme: "dark", DefaultLanding: "/", EnableHistory: true},
 		Store:  StoreConfig{Path: "/tmp/x.db", RetentionDays: 30},
-		Images: ImagesConfig{DefaultMode: "lazy"},
 		Derived: DerivedConfig{Thresholds: ThresholdsConfig{
 			SWPCAlertWindowHours: 24,
 			SWPCAlertProducts:    []string{"K08A", "lowercase", "K05A;DROP", "P12A", "WARK04W"},
@@ -279,6 +280,108 @@ func sameStrings(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func TestDefaults_ImagesBlockShape(t *testing.T) {
+	cfg := defaults()
+	if cfg.Images.DiskMaxBytes <= 0 {
+		t.Errorf("Images.DiskMaxBytes default must be > 0")
+	}
+	if cfg.Images.HotMaxBytes < 0 {
+		t.Errorf("Images.HotMaxBytes default must be >= 0")
+	}
+	if cfg.Images.HotMaxEntries <= 0 {
+		t.Errorf("Images.HotMaxEntries default must be > 0")
+	}
+	if cfg.Images.RefreshInterval < 60*time.Second {
+		t.Errorf("Images.RefreshInterval default must be >= 60s")
+	}
+	if len(cfg.Images.Prewarm) == 0 {
+		t.Errorf("Images.Prewarm default must be non-empty")
+	}
+	wantPrewarm := []string{"spc.day1otlk", "spc.day2otlk", "spc.day3otlk", "nhc.atl_7d"}
+	if got := cfg.Images.Prewarm; !slices.Equal(got, wantPrewarm) {
+		t.Errorf("Images.Prewarm = %v, want %v", got, wantPrewarm)
+	}
+}
+
+func TestValidate_RejectsNonPositiveDiskMaxBytes(t *testing.T) {
+	cfg := defaults()
+	cfg.Images.DiskMaxBytes = 0
+	if err := validate(cfg); err == nil {
+		t.Error("expected error for DiskMaxBytes <= 0")
+	}
+}
+
+func TestValidate_AllowsZeroHotMaxBytes_DisablesHotTier(t *testing.T) {
+	cfg := defaults()
+	cfg.Images.HotMaxBytes = 0
+	if err := validate(cfg); err != nil {
+		t.Errorf("expected zero HotMaxBytes accepted (disables tier), got %v", err)
+	}
+}
+
+func TestValidateImageIntervals_ClampsBelowFloor(t *testing.T) {
+	cfg := defaults()
+	cfg.Images.ImageIntervals = map[string]time.Duration{
+		"spc.day1otlk": 5 * time.Second, // below 60s floor
+		"nhc.atl_7d":   2 * time.Minute, // OK
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	validateImageIntervals(cfg, logger)
+	if got := cfg.Images.ImageIntervals["spc.day1otlk"]; got != 60*time.Second {
+		t.Errorf("clamped value = %s, want 60s", got)
+	}
+	if got := cfg.Images.ImageIntervals["nhc.atl_7d"]; got != 2*time.Minute {
+		t.Errorf("untouched value changed to %s", got)
+	}
+}
+
+func TestValidateImagesPrewarm_DropsUnknownKey(t *testing.T) {
+	cfg := defaults()
+	cfg.Images.Prewarm = []string{"spc.day1otlk", "bogus.never_existed", "nhc.atl_7d"}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	validateImagesPrewarm(cfg, logger)
+	want := []string{"spc.day1otlk", "nhc.atl_7d"}
+	if !slices.Equal(cfg.Images.Prewarm, want) {
+		t.Errorf("Prewarm = %v, want %v", cfg.Images.Prewarm, want)
+	}
+}
+
+func TestEnvOverride_ImagesPrewarm_ReplacesList(t *testing.T) {
+	t.Setenv("CWD_IMAGES_PREWARM", "spc.day1otlk,nhc.epac_7d,wpc.heatrisk_day1")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cfg := defaults()
+	applyEnvOverrides(cfg, logger)
+	want := []string{"spc.day1otlk", "nhc.epac_7d", "wpc.heatrisk_day1"}
+	if !slices.Equal(cfg.Images.Prewarm, want) {
+		t.Errorf("after env override Prewarm = %v, want %v", cfg.Images.Prewarm, want)
+	}
+}
+
+func TestEnvOverride_ImageIntervals_DoubleUnderscoreSeparator(t *testing.T) {
+	// CWD_IMAGES_IMAGE_INTERVALS_SPC__DAY1OTLK_FIRE → spc.day1otlk_fire
+	t.Setenv("CWD_IMAGES_IMAGE_INTERVALS_SPC__DAY1OTLK_FIRE", "120s")
+	t.Setenv("CWD_IMAGES_IMAGE_INTERVALS_NHC__ATL_7D", "1h")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cfg := defaults()
+	applyEnvOverrides(cfg, logger)
+	if got := cfg.Images.ImageIntervals["spc.day1otlk_fire"]; got != 120*time.Second {
+		t.Errorf("spc.day1otlk_fire = %s, want 120s", got)
+	}
+	if got := cfg.Images.ImageIntervals["nhc.atl_7d"]; got != time.Hour {
+		t.Errorf("nhc.atl_7d = %s, want 1h", got)
+	}
+}
+
+func TestEnvOverride_ImageIntervals_BadDurationLoggedNotApplied(t *testing.T) {
+	t.Setenv("CWD_IMAGES_IMAGE_INTERVALS_SPC__DAY1OTLK", "not-a-duration")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cfg := defaults()
+	applyEnvOverrides(cfg, logger)
+	if _, ok := cfg.Images.ImageIntervals["spc.day1otlk"]; ok {
+		t.Error("bad duration should not have been applied")
+	}
 }
 
 func TestRegionFilter_DropsInvalid(t *testing.T) {
