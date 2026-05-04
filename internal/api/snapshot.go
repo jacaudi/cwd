@@ -36,14 +36,20 @@ func NewSnapshotHandler(c *cache.Cache, f sources.Filter) http.Handler {
 
 // snapshotSourceNames is the canonical wire-order for the snapshot map.
 // Iteration order doesn't change correctness (map encoding is unordered) but
-// the slice keeps the 5-source contract close to the handler so adding a
-// 6th source in a future phase only touches one place here.
+// the slice keeps the source contract close to the handler so adding another
+// source in a future phase only touches one place here.
+//
+// "image.invalidate" is the synthetic slot the imageproxy publishes through
+// the cache so SSE clients learn when /img/{key} bytes changed; it's listed
+// here so REST /api/snapshot matches the hub's initial-paint snapshot frame
+// (N2: keep REST and SSE inclusive of the same slots).
 var snapshotSourceNames = []string{
 	sources.NWSAlertsName,
 	sources.SWPCScalesName,
 	sources.SWPCAlertsName,
 	sources.USGSQuakesName,
 	sources.USGSVolcanoesName,
+	"image.invalidate",
 }
 
 func (h *snapshotHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

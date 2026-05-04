@@ -83,6 +83,39 @@ func TestSnapshot_FiveSourcesAllPresent(t *testing.T) {
 	}
 }
 
+// N2: REST /api/snapshot must include image.invalidate when present in cache,
+// matching the SSE initial-paint snapshot. The asymmetry pre-N2 was that the
+// hub's snapshot frame included image.invalidate but REST filtered it out.
+func TestSnapshot_IncludesImageInvalidateWhenCached(t *testing.T) {
+	c := cache.New()
+	now := time.Now().UTC()
+	c.Set(cache.Envelope{
+		Source:    "image.invalidate",
+		FetchedAt: now,
+		Validator: "spc.day1otlk@2026-05-03T22:14:33Z",
+		Payload: map[string]any{
+			"source":    "spc",
+			"name":      "day1otlk",
+			"fetchedAt": now,
+		},
+	})
+	h := NewSnapshotHandler(c, sources.NewFilter(nil, nil))
+	req := httptest.NewRequest(http.MethodGet, "/api/snapshot", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	src, _ := got["sources"].(map[string]any)
+	if _, ok := src["image.invalidate"]; !ok {
+		t.Errorf("expected image.invalidate present in /api/snapshot.sources, got: %+v", src)
+	}
+}
+
 func TestSnapshot_AbsentSourceOmittedNotNull(t *testing.T) {
 	c := cache.New()
 	c.Set(cache.Envelope{Source: "swpc_scales", FetchedAt: time.Now(), Validator: "v", Payload: sources.SWPCForecast{}})
