@@ -1,4 +1,4 @@
-import { Skeleton, Space, Statistic, Tag, Tooltip, Typography } from 'antd';
+import { Col, Row, Skeleton, Space, Statistic, Tag, Tooltip, Typography } from 'antd';
 import { ProCard } from '@ant-design/pro-components';
 import type { GScale, SWPCDay, SWPCForecast as SWPCForecastT } from '../api/types';
 
@@ -49,48 +49,56 @@ function GChip({ day }: { day: SWPCDay }) {
 }
 
 export function SWPCForecast({ forecast, fetchedAt }: Props) {
+  // Layout: explicit AntD Row+Col grid, 3-up at sm+ and full-width on xs.
+  // Issue #8 — ProCard.Group direction="row" was rendering 1-per-row in this
+  // nested-inside-<Card> context; matching the Hazards page's Row/Col idiom
+  // gives explicit responsive control.
   if (!forecast) {
     return (
-      <ProCard.Group direction="row">
+      <Row gutter={[16, 16]}>
         {DAY_LABELS.map((label) => (
-          <ProCard key={label} title={label} bordered>
-            <div role="status" aria-label="forecast-skeleton">
-              <Skeleton active paragraph={{ rows: 3 }} />
-            </div>
-          </ProCard>
+          <Col key={label} xs={24} sm={8}>
+            <ProCard title={label} bordered>
+              <div role="status" aria-label="forecast-skeleton">
+                <Skeleton active paragraph={{ rows: 3 }} />
+              </div>
+            </ProCard>
+          </Col>
         ))}
-      </ProCard.Group>
+      </Row>
     );
   }
   const fetchedNote = fetchedAt
     ? `as of ${new Date(fetchedAt).toUTCString()}`
     : '';
   return (
-    <ProCard.Group direction="row">
+    <Row gutter={[16, 16]}>
       {DAY_LABELS.map((label, i) => {
         const day = forecast.days[i];
         const tooltipTitle = `${day.gText ?? ''} ${fetchedNote}`.trim();
         return (
-          <Tooltip key={label} title={tooltipTitle || undefined}>
-            <ProCard
-              title={
-                <Space direction="vertical" size={0}>
-                  <span>{label}</span>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    {day.date}
-                  </Typography.Text>
-                </Space>
-              }
-              bordered
-              extra={<GChip day={day} />}
-            >
-              <ProbRow label="R1" value={day.r1} />
-              <ProbRow label="R3" value={day.r3} />
-              <ProbRow label="S1" value={day.s1} />
-            </ProCard>
-          </Tooltip>
+          <Col key={label} xs={24} sm={8}>
+            <Tooltip title={tooltipTitle || undefined}>
+              <ProCard
+                title={
+                  <Space direction="vertical" size={0}>
+                    <span>{label}</span>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      {day.date}
+                    </Typography.Text>
+                  </Space>
+                }
+                bordered
+                extra={<GChip day={day} />}
+              >
+                <ProbRow label="R1" value={day.r1} />
+                <ProbRow label="R3" value={day.r3} />
+                <ProbRow label="S1" value={day.s1} />
+              </ProCard>
+            </Tooltip>
+          </Col>
         );
       })}
-    </ProCard.Group>
+    </Row>
   );
 }

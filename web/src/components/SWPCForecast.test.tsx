@@ -51,4 +51,21 @@ describe('SWPCForecast', () => {
     render(<SWPCForecast forecast={null} fetchedAt={null} />);
     expect(screen.getAllByLabelText(/forecast-skeleton/i).length).toBe(3);
   });
+
+  // Issue #8: forecast cards must lay out 3-up via AntD Row/Col, not stacked
+  // in a vertical ProCard.Group. The wrapper exposes the .ant-row class so
+  // we can assert the layout shape without coupling to specific style values.
+  it('uses an AntD Row container with three Col children', () => {
+    const { container } = render(<SWPCForecast forecast={fc} fetchedAt={null} />);
+    const row = container.querySelector('.ant-row');
+    expect(row).toBeTruthy();
+    const cols = container.querySelectorAll('.ant-col');
+    expect(cols.length).toBe(3);
+  });
+
+  it('uses Row/Col layout in the skeleton state too', () => {
+    const { container } = render(<SWPCForecast forecast={null} fetchedAt={null} />);
+    expect(container.querySelector('.ant-row')).toBeTruthy();
+    expect(container.querySelectorAll('.ant-col').length).toBe(3);
+  });
 });
