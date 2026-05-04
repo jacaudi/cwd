@@ -73,9 +73,11 @@ type ImagesConfig struct {
 	CacheDir string `yaml:"cache_dir"`
 	// DiskMaxBytes caps the on-disk store. Must be > 0.
 	DiskMaxBytes int64 `yaml:"disk_max_bytes"`
-	// HotMaxBytes caps the in-memory hot tier. 0 disables the tier (disk-only).
+	// HotMaxBytes caps the in-memory hot tier in bytes. Set this or
+	// HotMaxEntries to 0 to disable the tier (disk-only).
 	HotMaxBytes int64 `yaml:"hot_max_bytes"`
-	// HotMaxEntries caps the hot tier by entry count.
+	// HotMaxEntries caps the hot tier by entry count. Set this or HotMaxBytes
+	// to 0 to disable the tier (disk-only).
 	HotMaxEntries int `yaml:"hot_max_entries"`
 	// ImageIntervals overrides the per-image cadence by dot key (e.g.
 	// "spc.day1otlk": 90s). Values below 60s are clamped + logged.
@@ -492,8 +494,10 @@ func validate(cfg *Config) error {
 	if cfg.Images.HotMaxBytes < 0 {
 		return errors.New("images.hot_max_bytes must be >= 0 (0 disables hot tier)")
 	}
-	if cfg.Images.HotMaxEntries <= 0 {
-		return errors.New("images.hot_max_entries must be > 0")
+	// Symmetric to HotMaxBytes: setting either to 0 disables the hot tier.
+	// Negative values are still invalid.
+	if cfg.Images.HotMaxEntries < 0 {
+		return errors.New("images.hot_max_entries must be >= 0 (0 disables hot tier)")
 	}
 	if cfg.Images.CacheDir == "" {
 		return errors.New("images.cache_dir must be set")
