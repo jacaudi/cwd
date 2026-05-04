@@ -4,10 +4,25 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"math/rand/v2"
 	"os"
 	"sync"
 	"time"
 )
+
+// startupJitter returns a non-negative duration in [0, base/4). It's the
+// per-key offset added to the *first* prewarm tick so a list of N keys with
+// the same interval doesn't burst all upstream requests at boot. Subsequent
+// ticks fire at the steady cadence with no jitter.
+//
+// Variable so tests can disable jitter for deterministic cadence assertions
+// (TestStartPrewarm_PollsEachKeyOnInterval relies on tight timing).
+var startupJitter = func(base time.Duration) time.Duration {
+	if base <= 0 {
+		return 0
+	}
+	return time.Duration(rand.Int64N(int64(base / 4)))
+}
 
 // StartPrewarm spawns one goroutine per key that calls proxy.Refresh on the
 // per-image interval (registry default unless overridden by operator config).
@@ -54,7 +69,10 @@ func runOne(ctx context.Context, p *Proxy, key string, logger *slog.Logger) {
 		base = 5 * time.Minute
 	}
 	maxBackoff := 5 * base
-	delay := time.Duration(0) // first tick fires immediately
+	// First tick fires after a small per-key jitter in [0, base/4). Spreads
+	// the boot burst across multiple keys on the same upstream host instead
+	// of firing them all simultaneously at t=0.
+	delay := startupJitter(base)
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
 
