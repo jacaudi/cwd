@@ -20,7 +20,6 @@ images:
   disk_max_bytes: 524288000
   hot_max_bytes: 67108864
   hot_max_entries: 256
-  refresh_interval: "5m"
   image_intervals: {}
   prewarm: []
 

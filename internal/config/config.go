@@ -77,9 +77,6 @@ type ImagesConfig struct {
 	HotMaxBytes int64 `yaml:"hot_max_bytes"`
 	// HotMaxEntries caps the hot tier by entry count.
 	HotMaxEntries int `yaml:"hot_max_entries"`
-	// RefreshInterval is the global default cadence (per-image entries override).
-	// Below the 60s politeness floor, validateImagesRefreshInterval clamps + WARNs.
-	RefreshInterval time.Duration `yaml:"refresh_interval"`
 	// ImageIntervals overrides the per-image cadence by dot key (e.g.
 	// "spc.day1otlk": 90s). Values below 60s are clamped + logged.
 	ImageIntervals map[string]time.Duration `yaml:"image_intervals"`
@@ -175,7 +172,6 @@ func LoadWithLogger(path string, logger *slog.Logger) (*Config, error) {
 	validateSWPCProducts(cfg, logger)
 	validateSWPCWindow(cfg, logger)
 	validateSourceIntervalFloors(cfg, logger)
-	validateImagesRefreshInterval(cfg, logger)
 	validateImageIntervals(cfg, logger)
 	validateImagesPrewarm(cfg, logger)
 
@@ -234,18 +230,6 @@ func validateSourceIntervalFloors(cfg *Config, logger *slog.Logger) {
 				"interval", src.Interval.String(),
 				"floor", floor.String())
 		}
-	}
-}
-
-// validateImagesRefreshInterval clamps refresh_interval below the 60s
-// politeness floor and WARNs.
-func validateImagesRefreshInterval(cfg *Config, logger *slog.Logger) {
-	const floor = 60 * time.Second
-	if cfg.Images.RefreshInterval > 0 && cfg.Images.RefreshInterval < floor {
-		logger.Warn("config.images_refresh_interval_clamped",
-			"value", cfg.Images.RefreshInterval.String(),
-			"floor", floor.String())
-		cfg.Images.RefreshInterval = floor
 	}
 }
 
@@ -319,12 +303,11 @@ func defaults() *Config {
 			"usgs_volcanoes": {Interval: 5 * time.Minute, Enabled: boolPtr(true)},
 		},
 		Images: ImagesConfig{
-			CacheDir:        xdgState("cwd/images"),
-			DiskMaxBytes:    524_288_000, // 500 MiB
-			HotMaxBytes:     67_108_864,  // 64 MiB
-			HotMaxEntries:   256,
-			RefreshInterval: 5 * time.Minute,
-			ImageIntervals:  map[string]time.Duration{},
+			CacheDir:       xdgState("cwd/images"),
+			DiskMaxBytes:   524_288_000, // 500 MiB
+			HotMaxBytes:    67_108_864,  // 64 MiB
+			HotMaxEntries:  256,
+			ImageIntervals: map[string]time.Duration{},
 			// Default prewarm list — must stay in sync with
 			// imageproxy.DefaultPrewarmKeys(). Hardcoded as a literal here to
 			// avoid an import cycle: Phase 3 Task 4 will introduce

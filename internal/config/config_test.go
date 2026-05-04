@@ -293,9 +293,6 @@ func TestDefaults_ImagesBlockShape(t *testing.T) {
 	if cfg.Images.HotMaxEntries <= 0 {
 		t.Errorf("Images.HotMaxEntries default must be > 0")
 	}
-	if cfg.Images.RefreshInterval < 60*time.Second {
-		t.Errorf("Images.RefreshInterval default must be >= 60s")
-	}
 	if len(cfg.Images.Prewarm) == 0 {
 		t.Errorf("Images.Prewarm default must be non-empty")
 	}

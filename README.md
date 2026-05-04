@@ -70,7 +70,6 @@ CWD_IMAGES_CACHE_DIR=/var/lib/cwd/images
 CWD_IMAGES_DISK_MAX_BYTES=524288000
 CWD_IMAGES_HOT_MAX_BYTES=67108864
 CWD_IMAGES_HOT_MAX_ENTRIES=256
-CWD_IMAGES_REFRESH_INTERVAL=5m
 CWD_IMAGES_PREWARM=spc.day1otlk,spc.day2otlk,spc.day3otlk,nhc.atl_7d
 # Per-image interval override; "__" is the dot separator in the registry key.
 CWD_IMAGES_IMAGE_INTERVALS_SPC__DAY1OTLK=90s
