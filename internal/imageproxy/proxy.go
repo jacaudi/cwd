@@ -243,13 +243,15 @@ func (p *Proxy) Refresh(ctx context.Context, key string) error {
 	bodyHash := "sha256:" + hex.EncodeToString(sum[:])
 
 	// Diff-on-write predicate: did the body sha256 actually change?
-	if st.bodyHash != "" && st.bodyHash == bodyHash {
+	// Read the current bodyHash under p.mu so we don't race with Stats().
+	prevBodyHash := p.readBodyHash(st)
+	if prevBodyHash != "" && prevBodyHash == bodyHash {
 		// ETag may have churned without a content change (WPC mtime ETags do this);
 		// refresh stored validator metadata so future If-None-Match works, but do
-		// NOT broadcast.
-		st.etag = upstreamETag
-		st.lastModified = upstreamLM
-		p.markSuccess(st, now, p.publicValidator(st, bodyHash))
+		// NOT broadcast. All writes to st.etag/st.lastModified/st.bodyHash MUST
+		// hold p.mu — Stats() reads them under the same lock.
+		p.markValidator(st, upstreamETag, upstreamLM, "")
+		p.markSuccess(st, now, p.publicValidatorOf(st, bodyHash))
 		return nil
 	}
 
@@ -264,9 +266,7 @@ func (p *Proxy) Refresh(ctx context.Context, key string) error {
 	}
 	p.hot.Put(key, body, contentType, validator, now)
 
-	st.etag = upstreamETag
-	st.lastModified = upstreamLM
-	st.bodyHash = bodyHash
+	p.markValidator(st, upstreamETag, upstreamLM, bodyHash)
 	p.markSuccess(st, now, validator)
 
 	if p.onInvalidate != nil {
@@ -278,8 +278,33 @@ func (p *Proxy) Refresh(ctx context.Context, key string) error {
 	return nil
 }
 
-// publicValidator returns the upstream ETag if non-empty, else the body hash.
-func (p *Proxy) publicValidator(st *entryState, bodyHash string) string {
+// markValidator atomically updates the per-key validator state. Required so
+// Stats() and Refresh() agree on the lock guarding st.etag/lastModified/bodyHash.
+// Pass bodyHash="" to leave the existing bodyHash unchanged (used by the
+// diff-on-write branch where the body did not change).
+// Caller must NOT hold p.mu.
+func (p *Proxy) markValidator(st *entryState, etag, lastModified, bodyHash string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	st.etag = etag
+	st.lastModified = lastModified
+	if bodyHash != "" {
+		st.bodyHash = bodyHash
+	}
+}
+
+// readBodyHash returns st.bodyHash under p.mu.
+func (p *Proxy) readBodyHash(st *entryState) string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return st.bodyHash
+}
+
+// publicValidatorOf returns the upstream ETag if non-empty, else the body hash.
+// Takes p.mu internally; caller must NOT hold it.
+func (p *Proxy) publicValidatorOf(st *entryState, bodyHash string) string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if st.etag != "" {
 		return st.etag
 	}
@@ -317,8 +342,8 @@ func (p *Proxy) Stats() map[string]ImageHealth {
 	return out
 }
 
-// publicValidatorLocked is publicValidator's lock-free variant for callers
-// already holding p.mu.
+// publicValidatorLocked is the lock-free variant of publicValidatorOf — caller
+// must already hold p.mu. Used by Stats() which already holds the lock.
 func (p *Proxy) publicValidatorLocked(st *entryState, bodyHash string) string {
 	if st.etag != "" {
 		return st.etag

@@ -268,6 +268,59 @@ func TestProxy_DiskHit_WarmsHotTier(t *testing.T) {
 	}
 }
 
+// TestProxy_RaceFreeUnderConcurrentRefreshAndStats exercises the fields shared
+// between Refresh (which writes etag/lastModified/bodyHash) and Stats (which
+// reads etag/bodyHash). Both paths must use the same mutex; otherwise the
+// race detector flags the access.
+//
+// The upstream returns a different body on every call so Refresh always takes
+// the "changed bytes" write path (lines that write etag/lastModified/bodyHash
+// outside markSuccess). With the bug present, `go test -race` reports a data
+// race between these writes and Stats() reading the same fields.
+func TestProxy_RaceFreeUnderConcurrentRefreshAndStats(t *testing.T) {
+	var seq atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := seq.Add(1)
+		w.Header().Set("Content-Type", "image/png")
+		// No ETag/Last-Modified — forces validator fallback to bodyHash and
+		// guarantees Refresh writes etag/lastModified to "" via the changed-body
+		// branch on every call. Sleep widens the unprotected-write window so the
+		// race detector reliably observes concurrent Stats reads.
+		time.Sleep(time.Millisecond)
+		_, _ = w.Write([]byte{byte(n), byte(n >> 8)})
+	}))
+	defer srv.Close()
+
+	p, _, _, _ := testProxy(t, "spc.day1otlk", srv.URL, "image/png", time.Hour)
+
+	const writers = 2
+	const readers = 8
+	const iters = 30
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	wg.Add(writers + readers)
+	for i := 0; i < writers; i++ {
+		go func() {
+			defer wg.Done()
+			<-start
+			for j := 0; j < iters; j++ {
+				_ = p.Refresh(context.Background(), "spc.day1otlk")
+			}
+		}()
+	}
+	for i := 0; i < readers; i++ {
+		go func() {
+			defer wg.Done()
+			<-start
+			for j := 0; j < iters*10; j++ {
+				_ = p.Stats()
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+}
+
 func TestProxy_Stats_TracksRegisteredKeys(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
