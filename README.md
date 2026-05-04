@@ -92,9 +92,13 @@ CWD_IMAGES_IMAGE_INTERVALS_NHC__ATL_7D=1h
 displays a "stale Xm" Tag when `consecutiveFailures > 0`.
 
 `/img/{source}/{name}` returns the upstream bytes verbatim with
-`Cache-Control: public, max-age=60, stale-while-revalidate=900`. When the
-proxy is serving stale bytes (upstream currently failing), the response
-includes `Warning: 110 cwd "stale Xm"`.
+`Cache-Control: public, max-age=60, stale-while-revalidate=900`. When upstream
+omits a `Content-Type` header, the registry's declared MIME type for the key
+is substituted; otherwise the upstream `Content-Type` is preserved as-is.
+Responses whose `Content-Type` is non-image (e.g. an HTML rate-limit page)
+or whose body is empty are rejected and the prior cached bytes (if any)
+remain in place. When the proxy is serving stale bytes (upstream currently
+failing), the response includes `Warning: 110 cwd "stale Xm"`.
 
 #### SSE invalidation
 
