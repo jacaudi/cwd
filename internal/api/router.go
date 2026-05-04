@@ -65,6 +65,10 @@ type RouterDeps struct {
 	SnapshotHandler http.Handler
 	HistoryHandler  http.Handler
 	StreamHandler   http.Handler
+	// ImagesHandler serves GET/HEAD /img/{source}/{name} (Phase 3). When nil,
+	// the routes are not registered. Lives inside the JSON-timeout group
+	// because it's a regular request/response (not SSE).
+	ImagesHandler http.Handler
 }
 
 // NewRouter assembles the HTTP surface from the given dependencies:
@@ -112,6 +116,14 @@ func NewRouter(deps RouterDeps) http.Handler {
 				r.Method(http.MethodGet, "/history", deps.HistoryHandler)
 			}
 		})
+		// /img/{source}/{name} — Phase 3 image proxy. Inside the JSON-timeout
+		// group because responses are bounded; chi routes this before the SPA
+		// fallback so /img/... never falls through to spaFallback (no
+		// staticExtensions change required).
+		if deps.ImagesHandler != nil {
+			r.Method(http.MethodGet, "/img/{source}/{name}", deps.ImagesHandler)
+			r.Method(http.MethodHead, "/img/{source}/{name}", deps.ImagesHandler)
+		}
 	})
 
 	// SSE registered OUTSIDE the timeout group — no WriteTimeout on streaming responses.
