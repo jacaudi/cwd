@@ -66,11 +66,18 @@ type Proxy struct {
 }
 
 // entryState holds Refresh-time mutable state per registry key.
+//
+// etag holds the upstream ETag verbatim (with quotes). It is only ever set
+// from the upstream response header — never overwritten with a synthesized
+// validator — so If-None-Match never echoes a body-hash to an upstream that
+// doesn't speak ETags. The public validator (returned from Stats() and used
+// as the cache.Envelope validator on writes) falls back to bodyHash when
+// st.etag is empty; see publicValidatorLocked.
 type entryState struct {
 	lastAttempt         time.Time
 	lastSuccess         time.Time
 	lastError           string
-	etag                string // upstream ETag verbatim (with quotes)
+	etag                string // upstream ETag verbatim (with quotes); empty when upstream omits it
 	lastModified        string // upstream Last-Modified verbatim
 	bodyHash            string // sha256:<hex> of last-known body
 	consecutiveFailures int
@@ -218,7 +225,7 @@ func (p *Proxy) Refresh(ctx context.Context, key string) error {
 
 	switch {
 	case resp.StatusCode == http.StatusNotModified:
-		p.markSuccess(st, now, st.etag)
+		p.markSuccess(st, now)
 		return nil
 	case resp.StatusCode/100 != 2:
 		ferr := fmt.Errorf("upstream status %d", resp.StatusCode)
@@ -251,10 +258,14 @@ func (p *Proxy) Refresh(ctx context.Context, key string) error {
 		// NOT broadcast. All writes to st.etag/st.lastModified/st.bodyHash MUST
 		// hold p.mu — Stats() reads them under the same lock.
 		p.markValidator(st, upstreamETag, upstreamLM, "")
-		p.markSuccess(st, now, p.publicValidatorOf(st, bodyHash))
+		p.markSuccess(st, now)
 		return nil
 	}
 
+	// Public validator: prefer upstream ETag, fall back to body hash. Used by
+	// disk/hot tier metadata and downstream caches. The synthesized fallback
+	// is NEVER stored in st.etag — that field is upstream-only so we don't
+	// echo a sha256: validator back as If-None-Match on the next request.
 	validator := upstreamETag
 	if validator == "" {
 		validator = bodyHash
@@ -267,7 +278,7 @@ func (p *Proxy) Refresh(ctx context.Context, key string) error {
 	p.hot.Put(key, body, contentType, validator, now)
 
 	p.markValidator(st, upstreamETag, upstreamLM, bodyHash)
-	p.markSuccess(st, now, validator)
+	p.markSuccess(st, now)
 
 	if p.onInvalidate != nil {
 		ev := ImageInvalidate{Source: img.Source, Name: img.Name, FetchedAt: now}
@@ -298,17 +309,6 @@ func (p *Proxy) readBodyHash(st *entryState) string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return st.bodyHash
-}
-
-// publicValidatorOf returns the upstream ETag if non-empty, else the body hash.
-// Takes p.mu internally; caller must NOT hold it.
-func (p *Proxy) publicValidatorOf(st *entryState, bodyHash string) string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if st.etag != "" {
-		return st.etag
-	}
-	return bodyHash
 }
 
 // Stats returns per-key health for /api/sources surfacing.
@@ -368,14 +368,17 @@ func (p *Proxy) markAttempt(st *entryState, now time.Time) {
 	st.lastAttempt = now
 }
 
-func (p *Proxy) markSuccess(st *entryState, now time.Time, validator string) {
+// markSuccess updates lastSuccess/lastError/consecutiveFailures. It does NOT
+// touch st.etag — upstream-validator writes go through markValidator, and
+// the public validator (with body-hash fallback) is synthesized at read time
+// in publicValidatorLocked. See N1 — keeping these split prevents the proxy
+// from echoing a synthesized sha256: validator back to upstreams that don't
+// speak ETags.
+func (p *Proxy) markSuccess(st *entryState, now time.Time) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	st.lastSuccess = now
 	st.lastError = ""
-	if validator != "" {
-		st.etag = validator
-	}
 	st.consecutiveFailures = 0
 }
 

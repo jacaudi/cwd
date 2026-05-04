@@ -168,6 +168,49 @@ func TestProxy_Refresh_304_NoBroadcastNoBytes(t *testing.T) {
 	}
 }
 
+// N1: when upstream omits ETag, the proxy must NOT echo a synthesized
+// "sha256:<hex>" body-hash validator back as If-None-Match on the next poll.
+// Pre-fix, st.etag was overloaded with both the upstream ETag and the public
+// (synthesized) validator, so an upstream that didn't speak ETags received its
+// own body-hash echoed. Cleanup separates them: st.etag stays upstream-only,
+// Stats() synthesizes the public validator at read time.
+func TestProxy_DoesNotEchoSynthesizedValidatorAsIfNoneMatch(t *testing.T) {
+	body := []byte("identical-bytes")
+	var lastINM string
+	var mu sync.Mutex
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		lastINM = r.Header.Get("If-None-Match")
+		mu.Unlock()
+		// No ETag/Last-Modified — forces validator fallback to body hash.
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	p, _, _, _ := testProxy(t, "spc.day1otlk", srv.URL, "image/png", time.Hour)
+	if err := p.Refresh(context.Background(), "spc.day1otlk"); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Refresh(context.Background(), "spc.day1otlk"); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	got := lastINM
+	mu.Unlock()
+	// Stats() should still report a non-empty validator (the body-hash fallback
+	// is fine for downstream caches), but the request to upstream must not
+	// carry a sha256: validator that the upstream doesn't speak.
+	if len(got) > 0 && len(got) >= len("sha256:") && got[:len("sha256:")] == "sha256:" {
+		t.Errorf("upstream If-None-Match leaked synthesized body-hash: %q", got)
+	}
+	stats := p.Stats()
+	h := stats["spc.day1otlk"]
+	if h.ETag == "" {
+		t.Errorf("Stats().ETag should report the synthesized body-hash validator publicly")
+	}
+}
+
 func TestProxy_DiffOnWrite_NoBroadcastOnIdenticalBody(t *testing.T) {
 	body := []byte("identical-bytes")
 	// Simulate an upstream that does not send ETag/Last-Modified — every poll
