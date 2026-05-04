@@ -142,4 +142,27 @@ describe('snapshot store', () => {
     });
     expect(useSnapshotStore.getState().imageRefresh['spc.day1otlk']).toBe('2026-05-03T22:14:33Z');
   });
+
+  it('preserves accumulated imageRefresh entries across setSnapshot (SSE reconnect)', () => {
+    // Pre-seed two invalidates from prior SSE events.
+    useSnapshotStore.getState().applyImageInvalidate({
+      source: 'spc', name: 'day1otlk', fetchedAt: '2026-05-03T22:14:33Z',
+    });
+    useSnapshotStore.getState().applyImageInvalidate({
+      source: 'nhc', name: 'atl_7d', fetchedAt: '2026-05-03T22:14:34Z',
+    });
+
+    // SSE reconnect delivers a fresh snapshot whose sources do NOT include
+    // an image.invalidate slot. Both pre-seeded entries must survive.
+    useSnapshotStore.getState().setSnapshot({
+      serverTime: '2026-05-03T22:15:00Z',
+      sources: {
+        nws_alerts: { source: 'nws_alerts', fetchedAt: 'a', payload: [] },
+      },
+    });
+
+    const refresh = useSnapshotStore.getState().imageRefresh;
+    expect(refresh['spc.day1otlk']).toBe('2026-05-03T22:14:33Z');
+    expect(refresh['nhc.atl_7d']).toBe('2026-05-03T22:14:34Z');
+  });
 });

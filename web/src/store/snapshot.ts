@@ -43,8 +43,10 @@ export const useSnapshotStore = create<State>((set) => ({
   snapshot: null,
   connection: 'connecting',
   imageRefresh: {},
-  setSnapshot: (s) => set(() => {
-    const nextRefresh: Record<string, string> = {};
+  setSnapshot: (s) => set((prev) => {
+    // Preserve previously accumulated invalidates so an SSE reconnect (which
+    // re-delivers the cached snapshot) does not wipe per-image refresh state.
+    const nextRefresh: Record<string, string> = { ...prev.imageRefresh };
     const inv = s.sources['image.invalidate'];
     if (inv) {
       const ev = inv.payload;
