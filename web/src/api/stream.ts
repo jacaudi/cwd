@@ -1,4 +1,4 @@
-import type { Snapshot, Envelope } from './types';
+import type { Snapshot, Envelope, ImageInvalidate } from './types';
 import type { SourcePayloadMap } from '../store/snapshot';
 
 export interface ConnectOpts {
@@ -7,6 +7,7 @@ export interface ConnectOpts {
     source: K,
     env: Envelope<SourcePayloadMap[K]>,
   ) => void;
+  onImageInvalidate?: (ev: ImageInvalidate) => void;
   onError?: (e: unknown) => void;
 }
 
@@ -22,6 +23,7 @@ const SOURCE_NAMES: (keyof SourcePayloadMap)[] = [
  * Connects the client to the live snapshot stream:
  * - fetches /api/snapshot for the initial paint
  * - subscribes to /api/stream for SSE updates (one listener per source)
+ * - subscribes to image.invalidate.update for image proxy invalidations
  * Returns a teardown function that closes the EventSource.
  */
 export async function connect(opts: ConnectOpts): Promise<() => void> {
@@ -49,5 +51,13 @@ export async function connect(opts: ConnectOpts): Promise<() => void> {
       }
     });
   }
+  es.addEventListener('image.invalidate.update', (e: MessageEvent) => {
+    try {
+      const env = JSON.parse(e.data) as Envelope<ImageInvalidate>;
+      opts.onImageInvalidate?.(env.payload);
+    } catch (err) {
+      opts.onError?.(err);
+    }
+  });
   return () => es.close();
 }

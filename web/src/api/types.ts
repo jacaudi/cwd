@@ -108,12 +108,21 @@ export interface Envelope<T> {
 export interface Snapshot {
   serverTime: string;
   sources: {
-    nws_alerts?:     Envelope<Alert[]>;
-    swpc_scales?:    Envelope<SWPCForecast>;
-    swpc_alerts?:    Envelope<SWPCAlert[]>;
-    usgs_quakes?:    Envelope<Quake[]>;
-    usgs_volcanoes?: Envelope<Volcano[]>;
+    nws_alerts?:           Envelope<Alert[]>;
+    swpc_scales?:          Envelope<SWPCForecast>;
+    swpc_alerts?:          Envelope<SWPCAlert[]>;
+    usgs_quakes?:          Envelope<Quake[]>;
+    usgs_volcanoes?:       Envelope<Volcano[]>;
+    'image.invalidate'?:   Envelope<ImageInvalidate>;
   };
+}
+
+// ── Phase 3: Image proxy invalidation event ──────────────────────────────
+
+export interface ImageInvalidate {
+  source: string;       // e.g. "spc"
+  name: string;         // e.g. "day1otlk"
+  fetchedAt: string;    // ISO-8601 UTC
 }
 
 export interface SourceHealth {

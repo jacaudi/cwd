@@ -63,4 +63,36 @@ describe('stream client', () => {
       expect(FakeES.last!.listeners[`${name}.update`]).toBeTruthy();
     }
   });
+
+  it('registers a listener for image.invalidate.update', async () => {
+    const fakeFetch = vi.fn().mockResolvedValue({
+      ok: true, json: async () => ({ serverTime: 't', sources: {} }),
+    });
+    vi.stubGlobal('fetch', fakeFetch);
+    vi.stubGlobal('EventSource', FakeES as any);
+    await connect({
+      onSnapshot: () => {},
+      onUpdate: () => {},
+      onImageInvalidate: () => {},
+    });
+    expect(FakeES.last!.listeners['image.invalidate.update']).toBeTruthy();
+  });
+
+  it('routes image.invalidate.update payloads to onImageInvalidate', async () => {
+    const fakeFetch = vi.fn().mockResolvedValue({
+      ok: true, json: async () => ({ serverTime: 't', sources: {} }),
+    });
+    vi.stubGlobal('fetch', fakeFetch);
+    vi.stubGlobal('EventSource', FakeES as any);
+    const seen: any[] = [];
+    await connect({
+      onSnapshot: () => {},
+      onUpdate: () => {},
+      onImageInvalidate: (ev) => seen.push(ev),
+    });
+    // simulate the SSE event using FakeES — call the registered listener.
+    const ev = { data: JSON.stringify({ source: 'image.invalidate', fetchedAt: 't', payload: { source: 'spc', name: 'day1otlk', fetchedAt: 't' } }) };
+    FakeES.last!.listeners['image.invalidate.update'][0](ev as any);
+    expect(seen[0]).toEqual({ source: 'spc', name: 'day1otlk', fetchedAt: 't' });
+  });
 });

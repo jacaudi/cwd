@@ -100,7 +100,7 @@ tasks:
       - task: build
 
   smoke:
-    desc: Boot against real upstreams for ~5 minutes; report all source health
+    desc: Boot against real upstreams for ~5 minutes; report all source + image health
     deps: [build:all]
     cmds:
       - |
@@ -127,6 +127,30 @@ tasks:
           and (.swpc_alerts.consecutiveFailures == 0)
           and (.usgs_quakes.consecutiveFailures == 0)
           and (.usgs_volcanoes.consecutiveFailures == 0)
-        ' > /dev/null && echo "OK: all 5 sources healthy" || (echo "FAIL: some source failing" && exit 1)
+        ' > /dev/null && echo "OK: all 5 data sources healthy" || (echo "FAIL: data source failing" && exit 1)
+        echo "---- assert all prewarm images healthy with lastSuccess set ----"
+        # Only the 4 default-prewarm keys are polled at boot; the other 16 image:*
+        # entries are lazy-only and stay at zero lastSuccess until first request.
+        curl -sS http://127.0.0.1:8765/api/sources | jq -e '
+          [
+            .["image:spc.day1otlk"],
+            .["image:spc.day2otlk"],
+            .["image:spc.day3otlk"],
+            .["image:nhc.atl_7d"]
+          ]
+          | all(
+              (.consecutiveFailures == 0)
+              and ((.lastSuccess // "") != "")
+              and ((.lastSuccess // "") != "0001-01-01T00:00:00Z")
+            )
+        ' > /dev/null && echo "OK: all 4 default prewarm entries fresh" || (echo "FAIL: prewarm entry stale or unfetched" && exit 1)
+        echo "---- assert prewarm bytes served via /img/* ----"
+        for key in spc.day1otlk spc.day2otlk spc.day3otlk nhc.atl_7d; do
+          src="${key%%.*}"; name="${key#*.}"
+          ct=$(curl -sS -o /dev/null -w "%{content_type} %{http_code}" "http://127.0.0.1:8765/img/${src}/${name}")
+          echo "  /img/${src}/${name} → ${ct}"
+          echo "${ct}" | grep -qE 'image/(png|gif|jpeg) 200' || (echo "FAIL: /img/${src}/${name} did not return image/* 200" && exit 1)
+        done
+        echo "OK: all default prewarm /img/* return image bytes"
         echo "---- holding for 4 more minutes (Ctrl-C to stop early) ----"
         sleep 240
