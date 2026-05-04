@@ -161,7 +161,7 @@ func (p *Proxy) Get(ctx context.Context, key string) (body []byte, contentType, 
 	st := p.stateOf(key)
 
 	if b, ct, v, ts, hit := p.hot.Get(key); hit {
-		stale, since := p.staleness(st, ts)
+		stale, since := p.staleness(key, st, ts)
 		if stale {
 			go p.refreshAsync(key)
 		}
@@ -170,7 +170,7 @@ func (p *Proxy) Get(ctx context.Context, key string) (body []byte, contentType, 
 
 	if b, ct, v, ts, derr := p.disk.Get(key); derr == nil {
 		p.hot.Put(key, b, ct, v, ts)
-		stale, since := p.staleness(st, ts)
+		stale, since := p.staleness(key, st, ts)
 		if stale {
 			go p.refreshAsync(key)
 		}
@@ -407,8 +407,10 @@ func (p *Proxy) markFailure(st *entryState, err error) {
 }
 
 // staleness reports whether ts is older than the per-key interval. Also true
-// if a recent failure has been recorded since lastSuccess.
-func (p *Proxy) staleness(st *entryState, ts time.Time) (bool, time.Duration) {
+// if a recent failure has been recorded since lastSuccess. The caller passes
+// the key directly — every caller already knows it, so there's no need to
+// reverse-lookup it from st.
+func (p *Proxy) staleness(key string, st *entryState, ts time.Time) (bool, time.Duration) {
 	p.mu.Lock()
 	failures := st.consecutiveFailures
 	lastSuccess := st.lastSuccess
@@ -417,23 +419,10 @@ func (p *Proxy) staleness(st *entryState, ts time.Time) (bool, time.Duration) {
 	if failures > 0 && !lastSuccess.IsZero() {
 		return true, now.Sub(lastSuccess)
 	}
-	if !ts.IsZero() && now.Sub(ts) >= p.Interval(p.keyForState(st)) {
+	if !ts.IsZero() && now.Sub(ts) >= p.Interval(key) {
 		return true, now.Sub(ts)
 	}
 	return false, 0
-}
-
-// keyForState reverse-lookups the key for an entryState. Linear scan over 20
-// entries is cheap and only runs in the staleness check (off the hot path).
-func (p *Proxy) keyForState(st *entryState) string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	for k, s := range p.state {
-		if s == st {
-			return k
-		}
-	}
-	return ""
 }
 
 func (p *Proxy) refreshAsync(key string) {
