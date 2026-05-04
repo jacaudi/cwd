@@ -239,7 +239,24 @@ func (p *Proxy) Refresh(ctx context.Context, key string) error {
 		return err
 	}
 
-	contentType := resp.Header.Get("Content-Type")
+	// N3 sanity checks: an upstream that returns 200 OK with text/html (e.g. a
+	// CDN rate-limit page) or with an empty body must NOT poison the cache.
+	// Treat either as a failure — the prior cached bytes (if any) stay intact.
+	// When upstream omits Content-Type entirely, the registry MIME fallback
+	// applies (img.MIME); see README "MIME fallback" note.
+	if len(body) == 0 {
+		ferr := fmt.Errorf("upstream returned empty body")
+		p.markFailure(st, ferr)
+		return ferr
+	}
+	upstreamCT := resp.Header.Get("Content-Type")
+	if upstreamCT != "" && !isImageContentType(upstreamCT) {
+		ferr := fmt.Errorf("upstream returned non-image Content-Type %q", upstreamCT)
+		p.markFailure(st, ferr)
+		return ferr
+	}
+
+	contentType := upstreamCT
 	if contentType == "" {
 		contentType = img.MIME
 	}
@@ -432,4 +449,39 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n]
+}
+
+// isImageContentType reports whether ct (a raw Content-Type header value, possibly
+// with parameters like "; charset=utf-8") names an image media type. The match
+// is case-insensitive on the type and ignores anything after a ";" or whitespace.
+func isImageContentType(ct string) bool {
+	// Trim leading whitespace.
+	i := 0
+	for i < len(ct) && (ct[i] == ' ' || ct[i] == '\t') {
+		i++
+	}
+	ct = ct[i:]
+	// Cut at the first ";" or whitespace to isolate the media type.
+	end := len(ct)
+	for j := 0; j < len(ct); j++ {
+		if ct[j] == ';' || ct[j] == ' ' || ct[j] == '\t' {
+			end = j
+			break
+		}
+	}
+	mediaType := ct[:end]
+	const prefix = "image/"
+	if len(mediaType) < len(prefix) {
+		return false
+	}
+	for k := 0; k < len(prefix); k++ {
+		c := mediaType[k]
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		if c != prefix[k] {
+			return false
+		}
+	}
+	return true
 }

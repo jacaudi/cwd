@@ -364,6 +364,82 @@ func TestProxy_RaceFreeUnderConcurrentRefreshAndStats(t *testing.T) {
 	wg.Wait()
 }
 
+// N3: an upstream that returns 200 OK with text/html (e.g. a CDN error page)
+// or with an empty body must NOT poison the cache. The proxy treats either as
+// a failure — increments consecutiveFailures, leaves any prior cached bytes
+// intact — instead of storing and serving the wrong thing as an image.
+func TestProxy_RefreshRejectsNonImageContentType(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte("<html>rate limited</html>"))
+	}))
+	defer srv.Close()
+
+	p, _, invs, mu := testProxy(t, "spc.day1otlk", srv.URL, "image/png", time.Hour)
+	err := p.Refresh(context.Background(), "spc.day1otlk")
+	if err == nil {
+		t.Errorf("expected Refresh to error on text/html upstream, got nil")
+	}
+	mu.Lock()
+	if len(*invs) != 0 {
+		t.Errorf("expected no invalidate broadcasts on rejected response, got %d", len(*invs))
+	}
+	mu.Unlock()
+	stats := p.Stats()
+	if stats["spc.day1otlk"].ConsecutiveFailures == 0 {
+		t.Errorf("expected ConsecutiveFailures > 0 after rejected response")
+	}
+	// Cache must NOT contain the bogus html bytes.
+	if p.hot.Has("spc.day1otlk") {
+		t.Errorf("hot tier should not be populated by rejected non-image response")
+	}
+}
+
+func TestProxy_RefreshRejectsEmptyBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		// no body
+	}))
+	defer srv.Close()
+
+	p, _, invs, mu := testProxy(t, "spc.day1otlk", srv.URL, "image/png", time.Hour)
+	err := p.Refresh(context.Background(), "spc.day1otlk")
+	if err == nil {
+		t.Errorf("expected Refresh to error on empty body, got nil")
+	}
+	mu.Lock()
+	if len(*invs) != 0 {
+		t.Errorf("expected no invalidate broadcasts on empty body, got %d", len(*invs))
+	}
+	mu.Unlock()
+	stats := p.Stats()
+	if stats["spc.day1otlk"].ConsecutiveFailures == 0 {
+		t.Errorf("expected ConsecutiveFailures > 0 after empty body response")
+	}
+	if p.hot.Has("spc.day1otlk") {
+		t.Errorf("hot tier should not be populated by empty body response")
+	}
+}
+
+// When upstream omits Content-Type entirely, the registry MIME fallback still
+// applies — accept the response. Documents the README clarification (N8).
+func TestProxy_RefreshAcceptsMissingContentTypeWithRegistryMIME(t *testing.T) {
+	body := []byte("\x89PNG\r\n\x1a\n-fake")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// no Content-Type set
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	p, _, _, _ := testProxy(t, "spc.day1otlk", srv.URL, "image/png", time.Hour)
+	if err := p.Refresh(context.Background(), "spc.day1otlk"); err != nil {
+		t.Errorf("expected Refresh to accept missing Content-Type with registry MIME, got %v", err)
+	}
+	if !p.hot.Has("spc.day1otlk") {
+		t.Errorf("expected hot tier populated when upstream omits Content-Type")
+	}
+}
+
 func TestProxy_Stats_TracksRegisteredKeys(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
