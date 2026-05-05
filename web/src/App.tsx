@@ -126,7 +126,9 @@ export default function App({ initialThemeMode }: AppProps) {
         )}
         rightContentRender={() => (
           <Space>
-            <Tag color="default">Phase 0 — skeleton</Tag>
+            {serverVersion?.version ? (
+              <Tag color="default">cwd {serverVersion.version}</Tag>
+            ) : null}
             <a aria-label="Settings" onClick={() => setSettingsOpen(true)}>
               <SettingOutlined />
             </a>

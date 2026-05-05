@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { render, waitFor, cleanup } from '@testing-library/react';
+import { render, waitFor, cleanup, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App';
+import { api } from './api/client';
 import { useSnapshotStore } from './store/snapshot';
 
 // Mock the stream module so we can assert connect() call count + cleanup.
@@ -12,6 +13,30 @@ const connectMock = vi.fn(async (_opts: unknown) => teardown);
 vi.mock('./api/stream', () => ({
   connect: (opts: unknown) => connectMock(opts),
 }));
+
+// Mock the typed API client so the header tag tests get a deterministic
+// version string regardless of the global fetch stub. Implementations are
+// (re)installed in beforeEach because vi.restoreAllMocks() in afterEach
+// clears mockResolvedValue from vi.fn() instances between tests.
+vi.mock('./api/client', () => ({
+  api: {
+    uiconfig: vi.fn(),
+    version: vi.fn(),
+  },
+}));
+
+function installApiMocks() {
+  vi.mocked(api.uiconfig).mockResolvedValue({
+    defaultTheme: 'dark',
+    defaultLanding: '/',
+    enableHistory: true,
+  } as Awaited<ReturnType<typeof api.uiconfig>>);
+  vi.mocked(api.version).mockResolvedValue({
+    version: 'v0.4.1',
+    commit: 'abc123',
+    date: '2026-05-05',
+  } as Awaited<ReturnType<typeof api.version>>);
+}
 
 // AntD ProLayout pulls in icons/CSS-in-JS that can be noisy under jsdom; the
 // matchMedia stub in setup.ts already covers the main offender. We also stub
@@ -51,6 +76,7 @@ describe('App SSE lifecycle', () => {
     connectMock.mockClear();
     teardown.mockClear();
     stubBrowserGlobals();
+    installApiMocks();
   });
   afterEach(async () => {
     // Drain pending microtasks so the App's first-paint Promise.allSettled
@@ -114,5 +140,41 @@ describe('App SSE lifecycle', () => {
     await waitFor(() => expect(teardown).toHaveBeenCalledTimes(0));
     unmount();
     await waitFor(() => expect(teardown).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('App header tag', () => {
+  beforeEach(() => {
+    connectMock.mockClear();
+    teardown.mockClear();
+    stubBrowserGlobals();
+    installApiMocks();
+  });
+  afterEach(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+    cleanup();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    useSnapshotStore.setState({ snapshot: null, connection: 'connecting' });
+  });
+
+  it('renders the build-version tag once /api/version resolves', async () => {
+    render(<MemoryRouter><App initialThemeMode="dark" /></MemoryRouter>);
+    // The version string appears in both the header tag and the footer line;
+    // assert the header `<Tag>` contains it specifically (the deprecated tag
+    // had no version text, so finding "cwd v0.4.1" inside an ant-tag span is
+    // the load-bearing assertion).
+    await waitFor(() => {
+      const matches = screen.getAllByText(/cwd v0\.4\.1/);
+      const inTag = matches.some((el) =>
+        el.closest('.ant-tag') !== null,
+      );
+      expect(inTag).toBe(true);
+    });
+  });
+
+  it('does not render the deprecated "Phase 0 — skeleton" tag', () => {
+    render(<MemoryRouter><App initialThemeMode="dark" /></MemoryRouter>);
+    expect(screen.queryByText(/Phase 0 — skeleton/)).toBeNull();
   });
 });
