@@ -152,5 +152,9 @@ tasks:
           echo "${ct}" | grep -qE 'image/(png|gif|jpeg) 200' || (echo "FAIL: /img/${src}/${name} did not return image/* 200" && exit 1)
         done
         echo "OK: all default prewarm /img/* return image bytes"
+        echo "---- assert /api/history returns buckets for nws_alerts ----"
+        curl -sS "http://127.0.0.1:8765/api/history?source=nws_alerts&window=24h" | jq -e '
+          .source == "nws_alerts" and .window == "24h" and (.buckets | length > 0)
+        ' > /dev/null && echo "OK: /api/history nws_alerts has at least one bucket" || (echo "FAIL: /api/history empty" && exit 1)
         echo "---- holding for 4 more minutes (Ctrl-C to stop early) ----"
         sleep 240
