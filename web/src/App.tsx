@@ -19,6 +19,7 @@ import type { ThemeMode, UIConfig, VersionInfo } from "./api/types";
 import { buildThemeConfig, persistTheme } from "./theme";
 import SettingsDrawer from "./components/SettingsDrawer";
 import { SourceHealthIndicator } from "./components/SourceHealthIndicator";
+import { CONTENT_MAX_WIDTH } from "./layout/constants";
 
 import Overview from "./pages/Overview";
 import Hazards from "./pages/Hazards";
@@ -136,7 +137,15 @@ export default function App({ initialThemeMode }: AppProps) {
             <div style={{ marginBottom: 4 }}>
               <SourceHealthIndicator />
             </div>
-            <div style={{ opacity: 0.65 }}>
+            <div
+              style={{
+                opacity: 0.65,
+                width: "100%",
+                maxWidth: CONTENT_MAX_WIDTH,
+                marginLeft: "auto",
+                marginRight: "auto",
+              }}
+            >
               cwd {serverVersion?.version ?? "…"} ·{" "}
               UI default: <code>{uiConfig?.defaultTheme ?? "…"}</code> ·{" "}
               <a href="/api/version">version</a> · <a href="/api/uiconfig">uiconfig</a>
@@ -144,13 +153,28 @@ export default function App({ initialThemeMode }: AppProps) {
           </div>
         )}
       >
-        <Routes>
-          <Route path="/"        element={<Overview />} />
-          <Route path="/hazards" element={<Hazards />} />
-          <Route path="/space"   element={<SpaceWeather />} />
-          <Route path="/events"  element={<Events />} />
-          <Route path="/history" element={<History />} />
-        </Routes>
+        {/*
+          Issue #12: constrain the main content to the same max-width applied
+          to the footer's SourceHealthIndicator so the footer's wrapped tag
+          wall stays aligned under the cards above on wide viewports. The
+          single source of truth is CONTENT_MAX_WIDTH in src/layout/constants.
+        */}
+        <div
+          style={{
+            width: "100%",
+            maxWidth: CONTENT_MAX_WIDTH,
+            marginLeft: "auto",
+            marginRight: "auto",
+          }}
+        >
+          <Routes>
+            <Route path="/"        element={<Overview />} />
+            <Route path="/hazards" element={<Hazards />} />
+            <Route path="/space"   element={<SpaceWeather />} />
+            <Route path="/events"  element={<Events />} />
+            <Route path="/history" element={<History />} />
+          </Routes>
+        </div>
 
         <SettingsDrawer
           open={settingsOpen}
