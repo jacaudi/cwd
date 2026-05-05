@@ -48,3 +48,19 @@ export function persistTheme(mode: ThemeMode): void {
     /* ignore */
   }
 }
+
+/**
+ * useIsDark returns true when the surrounding AntD ConfigProvider is using
+ * the dark algorithm. Use this in chart components to pick a matching G2
+ * theme — without it, AntD Charts default to light text on a dark card and
+ * render axis labels invisibly.
+ */
+export function useIsDark(): boolean {
+  const { token } = antdTheme.useToken();
+  // colorBgBase is "#ffffff" in light, "#000000" in dark (per AntD 5 tokens).
+  // Read the first hex pair as luminance — a value < 128 means dark theme.
+  const hex = token.colorBgBase.replace("#", "");
+  if (hex.length < 2) return false;
+  const r = parseInt(hex.slice(0, 2), 16);
+  return r < 128;
+}

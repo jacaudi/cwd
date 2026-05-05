@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -360,5 +361,95 @@ done:
 	cancel()
 	if err := <-errCh; err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, http.ErrServerClosed) {
 		t.Errorf("Run error = %v", err)
+	}
+}
+
+func TestRun_HistoryEndpointReturnsBucketsForNWS(t *testing.T) {
+	// Mirror the AllFiveSources test's setup so the store has at least one
+	// snapshot for nws_alerts, then assert /api/history returns a non-empty
+	// buckets array.
+	// Valid NWS GeoJSON FeatureCollection with 2 features → activeCount 2
+	// after ParseNWSAlerts. (Plan listing's `[{"id":"a"},...]` body is rejected
+	// by the parser, leaving the store empty — use real shape instead.)
+	nwsBody := []byte(`{"type":"FeatureCollection","features":[` +
+		`{"id":"urn:oid:a","properties":{"id":"a","event":"Test","severity":"Minor","areaDesc":"Zone A"}},` +
+		`{"id":"urn:oid:b","properties":{"id":"b","event":"Test","severity":"Minor","areaDesc":"Zone B"}}` +
+		`]}`)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/geo+json")
+		w.Header().Set("ETag", `"e1"`)
+		_, _ = w.Write(nwsBody)
+	}))
+	defer srv.Close()
+	t.Setenv("CWD_NWS_ALERTS_URL", srv.URL)
+
+	// Set the other 4 to a 200-empty server so they don't error.
+	emptySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer emptySrv.Close()
+	t.Setenv("CWD_SWPC_SCALES_URL", emptySrv.URL)
+	t.Setenv("CWD_SWPC_ALERTS_URL", emptySrv.URL)
+	t.Setenv("CWD_USGS_QUAKES_URL", emptySrv.URL)
+	t.Setenv("CWD_USGS_VOLCANOES_URL", emptySrv.URL)
+
+	enabled := true
+	cfg := &config.Config{
+		Server: config.ServerConfig{Bind: "127.0.0.1:0", LogLevel: "info", LogFormat: "text", Contact: "test@example.com"},
+		UI:     config.UIConfig{DefaultTheme: "dark", DefaultLanding: "/", EnableHistory: true},
+		Store:  config.StoreConfig{Path: filepath.Join(t.TempDir(), "cwd.db"), RetentionDays: 30},
+		Sources: map[string]config.SourceConfig{
+			"nws_alerts":     {Interval: 80 * time.Millisecond, Enabled: &enabled},
+			"swpc_scales":    {Interval: 80 * time.Millisecond, Enabled: &enabled},
+			"swpc_alerts":    {Interval: 80 * time.Millisecond, Enabled: &enabled},
+			"usgs_quakes":    {Interval: 80 * time.Millisecond, Enabled: &enabled},
+			"usgs_volcanoes": {Interval: 80 * time.Millisecond, Enabled: &enabled},
+		},
+		Derived: config.DerivedConfig{Thresholds: config.ThresholdsConfig{
+			SWPCAlertWindowHours: 24,
+			SWPCAlertProducts:    []string{"K08A", "K09A", "P12A", "P13A"},
+		}},
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	addrCh := make(chan string, 1)
+	errCh := make(chan error, 1)
+	go func() { errCh <- Run(ctx, cfg, logger, addrCh) }()
+	addr := <-addrCh
+
+	// Wait for at least one fetch cycle (intervals above are 80ms; allow 1s).
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case <-deadline:
+			t.Fatal("timeout waiting for /api/history?source=nws_alerts to return non-empty buckets")
+		case <-time.After(100 * time.Millisecond):
+			resp, err := http.Get("http://" + addr + "/api/history?source=nws_alerts&window=24h")
+			if err != nil {
+				continue
+			}
+			body, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				continue
+			}
+			var got struct {
+				Source  string `json:"source"`
+				Buckets []struct {
+					ActiveCount int `json:"activeCount"`
+				} `json:"buckets"`
+			}
+			if err := json.Unmarshal(body, &got); err != nil {
+				continue
+			}
+			if got.Source == "nws_alerts" && len(got.Buckets) > 0 {
+				cancel()
+				<-errCh
+				return
+			}
+		}
 	}
 }

@@ -293,7 +293,7 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, addrCh ch
 		Ready:           ready,
 		SourcesHandler:  api.NewSourcesHandler(healthProvider, api.WithImageHealth(imageHealthFn(proxy.Stats))),
 		SnapshotHandler: api.NewSnapshotHandler(c, filter),
-		HistoryHandler:  api.NewHistoryHandler(st, filter),
+		HistoryHandler:  api.NewHistoryHandler(st),
 		StreamHandler:   api.NewStreamHandler(hub),
 		ImagesHandler:   api.NewImagesHandler(proxy),
 	})
