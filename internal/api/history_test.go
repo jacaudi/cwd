@@ -125,6 +125,85 @@ func TestHistoryHandler_NWSAlerts_BucketsHaveActiveCount(t *testing.T) {
 	}
 }
 
+func TestHistoryHandler_NWSAlerts_PerEventTypeCounts(t *testing.T) {
+	s := newTestStoreForAPI(t)
+	ctx := context.Background()
+	t0 := time.Now().UTC().Add(-time.Hour)
+
+	// Snapshot mixing event types — 1 tornado, 2 severe-tstorm, 1 flash flood, 1 unrelated.
+	type alert struct {
+		ID    string `json:"id"`
+		Event string `json:"event"`
+	}
+	mk := func(events ...string) []byte {
+		alerts := make([]alert, 0, len(events))
+		for i, e := range events {
+			alerts = append(alerts, alert{ID: "a" + string(rune('a'+i)), Event: e})
+		}
+		b, _ := json.Marshal(alerts)
+		return b
+	}
+	_ = s.Append(ctx, "nws_alerts", t0, "v1", mk(
+		"Tornado Warning",
+		"Severe Thunderstorm Warning",
+		"Severe Thunderstorm Watch",
+		"Flash Flood Warning",
+		"Winter Storm Watch",
+	))
+
+	h := NewHistoryHandler(s)
+	req := httptest.NewRequest(http.MethodGet, "/api/history?source=nws_alerts&window=24h", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("Code = %d, want %d (body=%s)", got, want, w.Body.String())
+	}
+
+	var body struct {
+		Buckets []struct {
+			ActiveCount int `json:"activeCount"`
+			EventCounts struct {
+				Tornado      int `json:"tornado"`
+				SevereTstorm int `json:"severeTstorm"`
+				FlashFlood   int `json:"flashFlood"`
+			} `json:"eventCounts"`
+		} `json:"buckets"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(body.Buckets) == 0 {
+		t.Fatal("no buckets")
+	}
+	// Find the bucket with the activity (max(activeCount) is 5).
+	var seen *struct {
+		ActiveCount int `json:"activeCount"`
+		EventCounts struct {
+			Tornado      int `json:"tornado"`
+			SevereTstorm int `json:"severeTstorm"`
+			FlashFlood   int `json:"flashFlood"`
+		} `json:"eventCounts"`
+	}
+	for i := range body.Buckets {
+		if body.Buckets[i].ActiveCount == 5 {
+			seen = &body.Buckets[i]
+			break
+		}
+	}
+	if seen == nil {
+		t.Fatalf("no bucket with activeCount=5; buckets=%+v", body.Buckets)
+	}
+	if seen.EventCounts.Tornado != 1 {
+		t.Errorf("tornado = %d, want 1", seen.EventCounts.Tornado)
+	}
+	if seen.EventCounts.SevereTstorm != 2 {
+		t.Errorf("severeTstorm = %d, want 2", seen.EventCounts.SevereTstorm)
+	}
+	if seen.EventCounts.FlashFlood != 1 {
+		t.Errorf("flashFlood = %d, want 1", seen.EventCounts.FlashFlood)
+	}
+}
+
 func TestHistoryHandler_USGSQuakes_RawEventsM4Plus(t *testing.T) {
 	s := newTestStoreForAPI(t)
 	ctx := context.Background()

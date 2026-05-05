@@ -34,6 +34,16 @@ var validSources = map[string]struct{}{
 	sources.USGSVolcanoesName: {},
 }
 
+// nwsEventCounters defines which NWS upstream "event" strings count toward
+// each per-event-type category surfaced on the History page. Names are matched
+// case-sensitive against the upstream NWS feed's `event` field. Unmatched
+// events are simply not counted (they still count toward activeCount).
+var nwsEventCounters = map[string][]string{
+	"tornado":      {"Tornado Warning", "Tornado Watch", "Tornado Emergency"},
+	"severeTstorm": {"Severe Thunderstorm Warning", "Severe Thunderstorm Watch"},
+	"flashFlood":   {"Flash Flood Warning", "Flash Flood Watch", "Flash Flood Emergency"},
+}
+
 type historyHandler struct {
 	store *store.Store
 }
@@ -109,11 +119,17 @@ func (h *historyHandler) dataStartFor(ctx context.Context, source string, from, 
 type nwsAlertsBucket struct {
 	At          string `json:"at"`
 	ActiveCount int    `json:"activeCount"`
+	EventCounts struct {
+		Tornado      int `json:"tornado"`
+		SevereTstorm int `json:"severeTstorm"`
+		FlashFlood   int `json:"flashFlood"`
+	} `json:"eventCounts"`
 }
 
 func (h *historyHandler) serveNWSAlerts(ctx context.Context, w http.ResponseWriter, window string, from, now time.Time) {
 	agg := func(rows []store.Row) ([]byte, error) {
 		maxCount := 0
+		maxByCategory := map[string]int{"tornado": 0, "severeTstorm": 0, "flashFlood": 0}
 		for _, r := range rows {
 			var arr []map[string]any
 			if err := json.Unmarshal(r.Payload, &arr); err != nil {
@@ -122,8 +138,28 @@ func (h *historyHandler) serveNWSAlerts(ctx context.Context, w http.ResponseWrit
 			if len(arr) > maxCount {
 				maxCount = len(arr)
 			}
+			rowByCat := map[string]int{"tornado": 0, "severeTstorm": 0, "flashFlood": 0}
+			for _, alert := range arr {
+				event, _ := alert["event"].(string)
+				for cat, names := range nwsEventCounters {
+					for _, name := range names {
+						if name == event {
+							rowByCat[cat]++
+							break
+						}
+					}
+				}
+			}
+			for cat, count := range rowByCat {
+				if count > maxByCategory[cat] {
+					maxByCategory[cat] = count
+				}
+			}
 		}
-		return json.Marshal(map[string]int{"activeCount": maxCount})
+		return json.Marshal(map[string]any{
+			"activeCount": maxCount,
+			"eventCounts": maxByCategory,
+		})
 	}
 	buckets, err := h.store.RangeBuckets(ctx, sources.NWSAlertsName, from, now, maxBucketsPerRequest, agg)
 	if err != nil {
@@ -133,12 +169,19 @@ func (h *historyHandler) serveNWSAlerts(ctx context.Context, w http.ResponseWrit
 
 	out := make([]nwsAlertsBucket, 0, len(buckets))
 	for _, b := range buckets {
-		var v map[string]int
+		var v struct {
+			ActiveCount int            `json:"activeCount"`
+			EventCounts map[string]int `json:"eventCounts"`
+		}
 		_ = json.Unmarshal(b.Payload, &v)
-		out = append(out, nwsAlertsBucket{
+		bucket := nwsAlertsBucket{
 			At:          b.BucketStart.UTC().Format(time.RFC3339Nano),
-			ActiveCount: v["activeCount"],
-		})
+			ActiveCount: v.ActiveCount,
+		}
+		bucket.EventCounts.Tornado = v.EventCounts["tornado"]
+		bucket.EventCounts.SevereTstorm = v.EventCounts["severeTstorm"]
+		bucket.EventCounts.FlashFlood = v.EventCounts["flashFlood"]
+		out = append(out, bucket)
 	}
 
 	dataStart := h.dataStartFor(ctx, sources.NWSAlertsName, from, now)
