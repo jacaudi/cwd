@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ConfigProvider, Space, Tag } from "antd";
+import enUS from "antd/locale/en_US";
 import { ProLayout } from "@ant-design/pro-components";
 import { Route, Routes, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -111,7 +112,7 @@ export default function App({ initialThemeMode }: AppProps) {
   };
 
   return (
-    <ConfigProvider theme={themeConfig}>
+    <ConfigProvider theme={themeConfig} locale={enUS}>
       <ProLayout
         title="cwd"
         logo={false}

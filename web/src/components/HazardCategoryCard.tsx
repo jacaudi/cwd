@@ -180,7 +180,7 @@ export function HazardCategoryCard({ category }: { category: HazardCategory }) {
                       alt={img.alt}
                       data-refresh-key={refreshKey}
                       placeholder={<Skeleton.Image style={{ width: '100%', height: 240 }} active />}
-                      style={{ width: '100%', height: 'auto' }}
+                      style={{ width: '100%', height: 240, objectFit: 'contain' }}
                     />
                   </Col>
                 );
