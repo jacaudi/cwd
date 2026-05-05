@@ -22,6 +22,23 @@ describe('HazardCategoryCard', () => {
     expect(screen.getByText(/Severe Storms/i)).toBeInTheDocument();
   });
 
+  // Issue #13: NCEP-style layout — left header cell (icon+title+stale tag)
+  // and right image strip cell, no ProCard chrome. The card root must mark
+  // itself with data-testid="hazard-row" and contain a header element with
+  // data-testid="hazard-row-header".
+  it('renders as a labeled row with a left header cell (NCEP layout, no ProCard chrome)', () => {
+    const { container } = render(<HazardCategoryCard category="severe-storms" />);
+    // No ProCard wrapper — the old layout used .ant-pro-card; the new layout
+    // must not render any ProCard chrome around the category.
+    expect(container.querySelector('.ant-pro-card')).toBeNull();
+    // The root row must be tagged so the page can stack rows reliably.
+    expect(container.querySelector('[data-testid="hazard-row"]')).not.toBeNull();
+    // The left header cell carries the title (and any future controls).
+    const header = container.querySelector('[data-testid="hazard-row-header"]');
+    expect(header).not.toBeNull();
+    expect(header?.textContent ?? '').toMatch(/Severe Storms/i);
+  });
+
   // Issue #9: render Day 1/2/3 side-by-side per category card. The
   // Segmented control + single-image swap is gone; all images live in the
   // same Image.PreviewGroup and render together.
