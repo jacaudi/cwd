@@ -6,78 +6,217 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/jacaudi/cwd/internal/sources"
 	"github.com/jacaudi/cwd/internal/store"
 )
 
-func newSeededStore(t *testing.T) *store.Store {
+func newTestStoreForAPI(t *testing.T) *store.Store {
 	t.Helper()
-	s, err := store.Open(filepath.Join(t.TempDir(), "h.db"))
+	s, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err := s.Migrate(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t0 := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-	for i, v := range []string{"vA", "vB"} {
-		body, _ := json.Marshal([]sources.Alert{{ID: v}})
-		if err := s.Append(context.Background(), "nws_alerts", t0.Add(time.Duration(i)*time.Minute), v, body); err != nil {
-			t.Fatal(err)
-		}
+		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
+	if err := s.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
 	return s
 }
 
-func TestHistory_NearestPrior(t *testing.T) {
-	s := newSeededStore(t)
-	h := NewHistoryHandler(s, sources.NewFilter(nil, nil))
-	req := httptest.NewRequest(http.MethodGet, "/api/history?at=2026-05-02T12:01:30Z", nil)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+func TestHistoryHandler_BadRequest_MissingSource(t *testing.T) {
+	s := newTestStoreForAPI(t)
+	h := NewHistoryHandler(s)
+	req := httptest.NewRequest(http.MethodGet, "/api/history?window=24h", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Errorf("Code = %d, want %d", got, want)
 	}
-	var got SnapshotResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+}
+
+func TestHistoryHandler_BadRequest_UnknownSource(t *testing.T) {
+	s := newTestStoreForAPI(t)
+	h := NewHistoryHandler(s)
+	req := httptest.NewRequest(http.MethodGet, "/api/history?source=mystery&window=24h", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Errorf("Code = %d, want %d", got, want)
+	}
+}
+
+func TestHistoryHandler_BadRequest_BadWindow(t *testing.T) {
+	s := newTestStoreForAPI(t)
+	h := NewHistoryHandler(s)
+	req := httptest.NewRequest(http.MethodGet, "/api/history?source=nws_alerts&window=42m", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Errorf("Code = %d, want %d", got, want)
+	}
+}
+
+func TestHistoryHandler_NWSAlerts_BucketsHaveActiveCount(t *testing.T) {
+	s := newTestStoreForAPI(t)
+	ctx := context.Background()
+	t0 := time.Now().UTC().Add(-time.Hour)
+
+	// Two snapshots: 3 alerts, then 5 alerts.
+	type alert struct {
+		ID string `json:"id"`
+	}
+	mk := func(n int) []byte {
+		alerts := make([]alert, n)
+		for i := range alerts {
+			alerts[i] = alert{ID: "a" + string(rune('a'+i))}
+		}
+		b, _ := json.Marshal(alerts)
+		return b
+	}
+	_ = s.Append(ctx, "nws_alerts", t0, "v1", mk(3))
+	_ = s.Append(ctx, "nws_alerts", t0.Add(30*time.Minute), "v2", mk(5))
+
+	h := NewHistoryHandler(s)
+	req := httptest.NewRequest(http.MethodGet, "/api/history?source=nws_alerts&window=24h", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("Code = %d, want %d (body=%s)", got, want, w.Body.String())
+	}
+
+	var body struct {
+		Source  string `json:"source"`
+		Window  string `json:"window"`
+		Buckets []struct {
+			At          string `json:"at"`
+			ActiveCount int    `json:"activeCount"`
+		} `json:"buckets"`
+		WindowStart string `json:"windowStart"`
+		DataStart   string `json:"dataStart"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Source != "nws_alerts" {
+		t.Errorf("Source = %q", body.Source)
+	}
+	if body.Window != "24h" {
+		t.Errorf("Window = %q", body.Window)
+	}
+	if len(body.Buckets) == 0 {
+		t.Fatalf("no buckets")
+	}
+	// Aggregator is max(activeCount); should see at least one bucket with 5.
+	maxSeen := 0
+	for _, b := range body.Buckets {
+		if b.ActiveCount > maxSeen {
+			maxSeen = b.ActiveCount
+		}
+	}
+	if maxSeen != 5 {
+		t.Errorf("max activeCount = %d, want 5", maxSeen)
+	}
+
+	if got := w.Header().Get("Cache-Control"); !strings.Contains(got, "max-age=60") {
+		t.Errorf("Cache-Control = %q, want max-age=60", got)
+	}
+}
+
+func TestHistoryHandler_USGSQuakes_RawEventsM4Plus(t *testing.T) {
+	s := newTestStoreForAPI(t)
+	ctx := context.Background()
+	t0 := time.Now().UTC().Add(-time.Hour)
+
+	// Each snapshot is a list of {features:[{properties:{mag, place, time}, geometry:{coordinates:[lon,lat,depth]}}, ...]}
+	mk := func(mags ...float64) []byte {
+		type props struct {
+			Mag   float64 `json:"mag"`
+			Place string  `json:"place"`
+			Time  int64   `json:"time"`
+		}
+		type geom struct {
+			Coordinates []float64 `json:"coordinates"`
+		}
+		type feat struct {
+			Properties props `json:"properties"`
+			Geometry   geom  `json:"geometry"`
+		}
+		feats := make([]feat, 0, len(mags))
+		for _, m := range mags {
+			feats = append(feats, feat{
+				Properties: props{Mag: m, Place: "test", Time: t0.UnixMilli()},
+				Geometry:   geom{Coordinates: []float64{0, 0, 10}},
+			})
+		}
+		b, _ := json.Marshal(map[string]any{"features": feats})
+		return b
+	}
+
+	_ = s.Append(ctx, "usgs_quakes", t0, "v1", mk(2.5, 4.2, 5.1, 3.9))
+
+	h := NewHistoryHandler(s)
+	req := httptest.NewRequest(http.MethodGet, "/api/history?source=usgs_quakes&window=24h", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("Code = %d, want %d (body=%s)", got, want, w.Body.String())
+	}
+
+	var body struct {
+		Events []struct {
+			Mag float64 `json:"mag"`
+		} `json:"events"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	env, ok := got.Sources["nws_alerts"]
-	if !ok {
-		t.Fatalf("nws_alerts missing: %s", rec.Body.String())
-	}
-	if env.ETag != "vB" {
-		t.Errorf("expected vB (nearest-prior at 12:01:30), got %q", env.ETag)
+	// M ≥ 4 only: should keep 4.2 and 5.1, drop 2.5 and 3.9.
+	if got := len(body.Events); got != 2 {
+		t.Errorf("len(events) = %d, want 2 (M4+ filter)", got)
 	}
 }
 
-func TestHistory_BadAt(t *testing.T) {
-	s := newSeededStore(t)
-	h := NewHistoryHandler(s, sources.NewFilter(nil, nil))
-	req := httptest.NewRequest(http.MethodGet, "/api/history?at=not-a-time", nil)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", rec.Code)
+func TestHistoryHandler_USGSVolcanoes_ChangesShape(t *testing.T) {
+	s := newTestStoreForAPI(t)
+	ctx := context.Background()
+	t0 := time.Now().UTC().Add(-time.Hour)
+	type vEntry struct {
+		Name        string `json:"name"`
+		Observatory string `json:"observatory"`
+		AlertLevel  string `json:"alertLevel"`
 	}
-}
+	mk := func(es ...vEntry) []byte { b, _ := json.Marshal(es); return b }
+	_ = s.Append(ctx, "usgs_volcanoes", t0, "v1", mk())
+	_ = s.Append(ctx, "usgs_volcanoes", t0.Add(time.Minute), "v2",
+		mk(vEntry{Name: "Kilauea", Observatory: "HVO", AlertLevel: "WATCH"}))
 
-func TestHistory_BeforeAnyRow(t *testing.T) {
-	s := newSeededStore(t)
-	h := NewHistoryHandler(s, sources.NewFilter(nil, nil))
-	req := httptest.NewRequest(http.MethodGet, "/api/history?at=2020-01-01T00:00:00Z", nil)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status: %d", rec.Code)
+	h := NewHistoryHandler(s)
+	req := httptest.NewRequest(http.MethodGet, "/api/history?source=usgs_volcanoes&window=24h", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("Code = %d, want %d", got, want)
 	}
-	var got SnapshotResponse
-	_ = json.Unmarshal(rec.Body.Bytes(), &got)
-	if _, has := got.Sources["nws_alerts"]; has {
-		t.Errorf("expected sources empty before first row")
+	var body struct {
+		Changes []struct {
+			Volcano string `json:"volcano"`
+			Prior   string `json:"prior"`
+			Current string `json:"current"`
+		} `json:"changes"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Changes) != 1 {
+		t.Fatalf("len(changes) = %d, want 1", len(body.Changes))
+	}
+	if got := body.Changes[0].Volcano; got != "HVO Kilauea" {
+		t.Errorf("Volcano = %q, want %q", got, "HVO Kilauea")
+	}
+	if body.Changes[0].Current != "WATCH" {
+		t.Errorf("Current = %q, want WATCH", body.Changes[0].Current)
 	}
 }
