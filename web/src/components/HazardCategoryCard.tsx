@@ -172,6 +172,11 @@ export function HazardCategoryCard({ category }: { category: HazardCategory }) {
             <Row gutter={[8, 8]}>
               {images.map((img) => {
                 const refreshKey = imageRefresh[img.key] ?? 'init';
+                // Single-image categories (flooding) keep natural aspect ratio at
+                // full column width. Multi-image categories enforce a fixed wrapper
+                // height so heterogeneous-aspect-ratio images (e.g. tropical's
+                // NHC vs. JTWC) render at identical visual sizes.
+                const fixedHeight = images.length > 1 ? 240 : undefined;
                 return (
                   <Col key={img.key} xs={span.xs} sm={span.sm}>
                     <Image
@@ -179,8 +184,13 @@ export function HazardCategoryCard({ category }: { category: HazardCategory }) {
                       src={img.path}
                       alt={img.alt}
                       data-refresh-key={refreshKey}
-                      placeholder={<Skeleton.Image style={{ width: '100%', height: 240 }} active />}
-                      style={{ width: '100%', height: 240, objectFit: 'contain' }}
+                      placeholder={<Skeleton.Image style={{ width: '100%', height: fixedHeight ?? 240 }} active />}
+                      wrapperStyle={{ display: 'block', width: '100%', height: fixedHeight }}
+                      style={
+                        fixedHeight
+                          ? { width: '100%', height: '100%', objectFit: 'contain' }
+                          : { width: '100%', height: 'auto' }
+                      }
                     />
                   </Col>
                 );
