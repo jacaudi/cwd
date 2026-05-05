@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { SourceHealthIndicator } from './SourceHealthIndicator';
 import { CONTENT_MAX_WIDTH } from '../layout/constants';
@@ -81,5 +81,32 @@ describe('SourceHealthIndicator', () => {
     expect(wrapper.style.marginRight).toBe('auto');
     // Fill available width up to the cap.
     expect(wrapper.style.width).toBe('100%');
+  });
+});
+
+const sample = {
+  nws_alerts: { consecutiveFailures: 0, ageSec: 5, intervalSec: 60, lastSuccess: '2026-05-05T12:00:00Z' },
+  'image:spc.day1otlk': { consecutiveFailures: 0, ageSec: 5, intervalSec: 60, lastSuccess: '2026-05-05T12:00:00Z' },
+};
+
+describe('SourceHealthIndicator dev-vs-prod', () => {
+  beforeEach(() => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(sample), { status: 200 }));
+  });
+
+  it('hides image:* tags when import.meta.env.DEV is false', async () => {
+    vi.stubEnv('DEV', false);
+    render(<SourceHealthIndicator pollMs={1_000_000} />);
+    await waitFor(() => expect(screen.getByText('nws_alerts')).toBeTruthy());
+    expect(screen.queryByText('image:spc.day1otlk')).toBeNull();
+    vi.unstubAllEnvs();
+  });
+
+  it('shows image:* tags when import.meta.env.DEV is true', async () => {
+    vi.stubEnv('DEV', true);
+    render(<SourceHealthIndicator pollMs={1_000_000} />);
+    await waitFor(() => expect(screen.getByText('nws_alerts')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('image:spc.day1otlk')).toBeTruthy());
+    vi.unstubAllEnvs();
   });
 });

@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { useEffect, useState } from 'react';
 import { Tag, Tooltip } from 'antd';
 import type { SourceHealth } from '../api/types';
@@ -40,6 +41,11 @@ export function SourceHealthIndicator({ pollMs = 15000 }: Props) {
   // (CONTENT_MAX_WIDTH) so the wrapped tag wall stays aligned under the
   // cards above it on wide viewports. App.tsx applies the same constraint
   // to the main content wrapper — keep these two in lockstep.
+  //
+  // Phase 4: image:* health tags are dev-only noise; hide them in
+  // production builds. The wrap + max-width container above stays — it
+  // still applies to the visible 5 data-source tags.
+  const isDev = import.meta.env.DEV;
   return (
     <div
       style={{
@@ -54,20 +60,22 @@ export function SourceHealthIndicator({ pollMs = 15000 }: Props) {
         marginRight: 'auto',
       }}
     >
-      {Object.entries(data).map(([name, h]) => {
-        const color =
-          h.consecutiveFailures > 0
-            ? 'red'
-            : h.ageSec > 2 * h.intervalSec
-              ? 'gold'
-              : 'green';
-        const tip = `${h.lastSuccess || 'never'} (age: ${h.ageSec}s, failures: ${h.consecutiveFailures})`;
-        return (
-          <Tooltip key={name} title={tip}>
-            <Tag color={color} style={{ marginInlineEnd: 0 }}>{name}</Tag>
-          </Tooltip>
-        );
-      })}
+      {Object.entries(data)
+        .filter(([name]) => isDev || !name.startsWith('image:'))
+        .map(([name, h]) => {
+          const color =
+            h.consecutiveFailures > 0
+              ? 'red'
+              : h.ageSec > 2 * h.intervalSec
+                ? 'gold'
+                : 'green';
+          const tip = `${h.lastSuccess || 'never'} (age: ${h.ageSec}s, failures: ${h.consecutiveFailures})`;
+          return (
+            <Tooltip key={name} title={tip}>
+              <Tag color={color} style={{ marginInlineEnd: 0 }}>{name}</Tag>
+            </Tooltip>
+          );
+        })}
     </div>
   );
 }
