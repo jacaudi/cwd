@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Col, Image, Row, Skeleton, Space, Tag, Typography } from 'antd';
+import { Card, Col, Image, Row, Skeleton, Space, Tag, Typography } from 'antd';
 import {
   CloudOutlined,
   ExperimentOutlined,
@@ -147,7 +147,11 @@ export function HazardCategoryCard({ category }: { category: HazardCategory }) {
     invalidation path is unchanged).
   */
   return (
-    <div data-testid="hazard-row" style={{ marginBottom: 24 }}>
+    <Card
+      data-testid="hazard-row"
+      style={{ marginBottom: 24 }}
+      styles={{ body: { padding: 16 } }}
+    >
       <Row align="top" gutter={[16, 12]} wrap>
         <Col
           xs={24}
@@ -185,6 +189,6 @@ export function HazardCategoryCard({ category }: { category: HazardCategory }) {
           </Image.PreviewGroup>
         </Col>
       </Row>
-    </div>
+    </Card>
   );
 }
