@@ -36,7 +36,7 @@ export function SWPCScalesLine({ data, window }: SWPCScalesLineProps) {
       colorField="series"
       shapeField="hv"
       height={180}
-      scale={{ color: { range: ['#fa8c16', '#f5222d', '#1890ff'] } }}
+      scale={{ x: { type: 'time' }, color: { range: ['#fa8c16', '#f5222d', '#1890ff'] } }}
       axis={{
         x: { title: false, labelFormatter: timeAxisFormatter(window) },
         y: { title: 'value' },

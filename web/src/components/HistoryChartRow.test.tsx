@@ -85,6 +85,51 @@ describe('HistoryChartRow', () => {
     await waitFor(() => expect(fetchNWSAlertsHistory).toHaveBeenCalledTimes(2), { timeout: 1000 });
   });
 
+  it('re-fetches when window prop changes', async () => {
+    (fetchNWSAlertsHistory as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...NWS_RESP, window: '24h',
+    });
+    const { rerender } = render(<HistoryChartRow source="nws_alerts" window="24h" />);
+    await waitFor(() => expect(fetchNWSAlertsHistory).toHaveBeenCalledWith('24h'));
+    (fetchNWSAlertsHistory as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...NWS_RESP, window: '7d',
+    });
+    rerender(<HistoryChartRow source="nws_alerts" window="7d" />);
+    await waitFor(() => expect(fetchNWSAlertsHistory).toHaveBeenCalledWith('7d'));
+  });
+
+  it('renders SWPC alerts headline with window-aware label ("N in <window>")', async () => {
+    const { fetchSWPCAlertsHistory } = await import('../api/history');
+    (fetchSWPCAlertsHistory as ReturnType<typeof vi.fn>).mockResolvedValue({
+      source: 'swpc_alerts' as const,
+      window: '24h' as const,
+      buckets: [
+        { at: '2026-05-05T11:00:00Z', warning: 2, watch: 3, alert: 1 },
+        { at: '2026-05-05T12:00:00Z', warning: 1, watch: 4, alert: 1 },
+      ],
+      windowStart: '2026-05-04T12:00:00Z',
+      dataStart: '2026-05-04T12:00:00Z',
+    });
+    render(<HistoryChartRow source="swpc_alerts" window="24h" />);
+    expect(await screen.findByText(/12 in 24h/)).toBeTruthy();
+  });
+
+  it('renders volcanoes headline with "N changes" wording', async () => {
+    const { fetchUSGSVolcanoesHistory } = await import('../api/history');
+    (fetchUSGSVolcanoesHistory as ReturnType<typeof vi.fn>).mockResolvedValue({
+      source: 'usgs_volcanoes' as const,
+      window: '24h' as const,
+      changes: [
+        { at: '2026-05-05T11:00:00Z', name: 'Mount A', from: 'green', to: 'yellow' },
+        { at: '2026-05-05T12:00:00Z', name: 'Mount B', from: 'yellow', to: 'orange' },
+      ],
+      windowStart: '2026-05-04T12:00:00Z',
+      dataStart: '2026-05-04T12:00:00Z',
+    });
+    render(<HistoryChartRow source="usgs_volcanoes" window="24h" />);
+    expect(await screen.findByText(/2 changes/)).toBeTruthy();
+  });
+
   it('renders the "data starts here" marker when dataStart > windowStart', async () => {
     (fetchNWSAlertsHistory as ReturnType<typeof vi.fn>).mockResolvedValue({
       ...NWS_RESP,

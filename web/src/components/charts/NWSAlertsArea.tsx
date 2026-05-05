@@ -23,7 +23,7 @@ export function NWSAlertsArea({ data, window }: NWSAlertsAreaProps) {
       shapeField="smooth"
       height={180}
       style={{ fillOpacity: 0.15, fill: '#52c41a', stroke: '#52c41a' }}
-      scale={{ y: { domainMin: 0 } }}
+      scale={{ x: { type: 'time' }, y: { domainMin: 0 } }}
       axis={{
         x: { title: false, labelFormatter: timeAxisFormatter(window) },
         y: { title: 'active alerts' },

@@ -62,12 +62,12 @@ function headlineFor(resp: Resp): string {
     }
     case 'swpc_alerts': {
       const total = resp.buckets.reduce((s, b) => s + b.warning + b.watch + b.alert, 0);
-      return `${total} in window`;
+      return `${total} in ${resp.window}`;
     }
     case 'usgs_quakes':
       return `${resp.events.length} M4+`;
     case 'usgs_volcanoes':
-      return `${resp.changes.length} elevated`;
+      return `${resp.changes.length} changes`;
   }
 }
 
@@ -83,6 +83,8 @@ export function HistoryChartRow({ source, window }: HistoryChartRowProps) {
   );
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevSseRef = useRef<string | null>(null);
+  const prevKeyRef = useRef<string>('');
 
   useEffect(() => {
     let cancelled = false;
@@ -102,14 +104,31 @@ export function HistoryChartRow({ source, window }: HistoryChartRowProps) {
         .finally(() => { if (!cancelled) setLoading(false); });
     };
 
-    // Mount + (source,window) change → fetch immediately.
-    // sseFetchedAt change → debounce-fetch.
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(run, SSE_REFETCH_DEBOUNCE_MS);
+    const key = `${source}|${window}`;
+    const sourceOrWindowChanged = prevKeyRef.current !== key;
+    prevKeyRef.current = key;
+    const sseAdvanced = !sourceOrWindowChanged && prevSseRef.current !== sseFetchedAt;
+    prevSseRef.current = sseFetchedAt;
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+
+    if (sourceOrWindowChanged) {
+      // Mount + (source,window) change → fetch immediately.
+      run();
+    } else if (sseAdvanced) {
+      // SSE tick → debounce 250ms to coalesce storms.
+      debounceRef.current = setTimeout(run, SSE_REFETCH_DEBOUNCE_MS);
+    }
 
     return () => {
       cancelled = true;
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
     };
   }, [source, window, sseFetchedAt]);
 
