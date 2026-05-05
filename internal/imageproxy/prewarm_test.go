@@ -12,7 +12,46 @@ import (
 	"time"
 )
 
+// N5: per-key startup jitter MUST stay within [0, base/4). Without it,
+// prewarm pollers for keys sharing an upstream host all fire at t=0 and burst
+// the host's connection pool at boot. The bound must be tight enough that
+// jitter can't accidentally delay first-paint by a multiple of the interval.
+func TestStartupJitter_StaysInBounds(t *testing.T) {
+	base := time.Minute
+	max := base / 4
+	for i := 0; i < 200; i++ {
+		got := startupJitter(base)
+		if got < 0 || got >= max {
+			t.Fatalf("startupJitter(%s) = %s, want [0, %s)", base, got, max)
+		}
+	}
+}
+
+func TestStartupJitter_ProducesSomeSpread(t *testing.T) {
+	// Sanity: across many calls, jitter should not collapse to a constant —
+	// otherwise the "stagger boot" property is silently broken.
+	seen := map[time.Duration]bool{}
+	for i := 0; i < 50; i++ {
+		seen[startupJitter(time.Minute)] = true
+	}
+	if len(seen) < 5 {
+		t.Errorf("startupJitter returned only %d distinct values across 50 calls; expected spread", len(seen))
+	}
+}
+
+func TestStartupJitter_ZeroBaseReturnsZero(t *testing.T) {
+	if got := startupJitter(0); got != 0 {
+		t.Errorf("startupJitter(0) = %s, want 0", got)
+	}
+}
+
 func TestStartPrewarm_PollsEachKeyOnInterval(t *testing.T) {
+	// Disable jitter for deterministic cadence — the test asserts on a tight
+	// timing window. Production keeps jitter on; bounds covered above.
+	prevJitter := startupJitter
+	startupJitter = func(time.Duration) time.Duration { return 0 }
+	defer func() { startupJitter = prevJitter }()
+
 	var calls atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
@@ -79,6 +118,9 @@ func TestStartPrewarm_StopsOnContextCancel(t *testing.T) {
 }
 
 func TestStartPrewarm_BacksOffOnFailure(t *testing.T) {
+	prevJitter := startupJitter
+	startupJitter = func(time.Duration) time.Duration { return 0 }
+	defer func() { startupJitter = prevJitter }()
 	var calls atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)

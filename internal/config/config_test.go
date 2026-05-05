@@ -318,6 +318,25 @@ func TestValidate_AllowsZeroHotMaxBytes_DisablesHotTier(t *testing.T) {
 	}
 }
 
+// N4: validation symmetry — HotMaxBytes=0 was already accepted, but
+// HotMaxEntries=0 was rejected, forcing operators to set a non-zero entry cap
+// they never use. Both should be allowed; either at zero disables the tier.
+func TestValidate_AllowsZeroHotMaxEntries_DisablesHotTier(t *testing.T) {
+	cfg := defaults()
+	cfg.Images.HotMaxEntries = 0
+	if err := validate(cfg); err != nil {
+		t.Errorf("expected zero HotMaxEntries accepted (disables tier), got %v", err)
+	}
+}
+
+func TestValidate_RejectsNegativeHotMaxEntries(t *testing.T) {
+	cfg := defaults()
+	cfg.Images.HotMaxEntries = -1
+	if err := validate(cfg); err == nil {
+		t.Error("expected error for negative HotMaxEntries")
+	}
+}
+
 func TestValidateImageIntervals_ClampsBelowFloor(t *testing.T) {
 	cfg := defaults()
 	cfg.Images.ImageIntervals = map[string]time.Duration{

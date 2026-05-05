@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Space, Tag, Tooltip } from 'antd';
+import { Tag, Tooltip } from 'antd';
 import type { SourceHealth } from '../api/types';
 
 interface Props {
@@ -29,8 +29,21 @@ export function SourceHealthIndicator({ pollMs = 15000 }: Props) {
     };
   }, [pollMs]);
 
+  // flex-wrap so the row of tags reflows onto multiple lines instead of
+  // overflowing the footer when there are many sources (post-Phase 3 the
+  // image proxy adds ~20 image:* entries on top of the 5 data sources).
+  // The Tag component already supplies its own margin; row-gap covers the
+  // wrapped lines so they don't visually collide.
   return (
-    <Space size="small">
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        rowGap: 4,
+        columnGap: 8,
+        alignItems: 'center',
+      }}
+    >
       {Object.entries(data).map(([name, h]) => {
         const color =
           h.consecutiveFailures > 0
@@ -41,10 +54,10 @@ export function SourceHealthIndicator({ pollMs = 15000 }: Props) {
         const tip = `${h.lastSuccess || 'never'} (age: ${h.ageSec}s, failures: ${h.consecutiveFailures})`;
         return (
           <Tooltip key={name} title={tip}>
-            <Tag color={color}>{name}</Tag>
+            <Tag color={color} style={{ marginInlineEnd: 0 }}>{name}</Tag>
           </Tooltip>
         );
       })}
-    </Space>
+    </div>
   );
 }

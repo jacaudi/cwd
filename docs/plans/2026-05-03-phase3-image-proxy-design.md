@@ -361,7 +361,7 @@ Existing 5 source entries unchanged. Each `images.prewarm` key gets a sibling en
 }
 ```
 
-Lazy-only images (not in `images.prewarm`) do NOT appear in `/api/sources` until first lazy fetch happens; at that point an entry is created and persists.
+All registered image keys appear in `/api/sources` from boot, prewarm and lazy alike. Lazy-only entries are emitted with zero-valued `lastAttempt`/`lastSuccess`/`ageSec` until their first observation, at which point those fields populate. This makes the full registry visible to operators and dashboards from process start without waiting for first-touch on every key. (Phase 3 cleanup #6 N6 — supersedes the original "do not appear until first lazy fetch" wording, which was operator-unfriendly.)
 
 ### 5.8 HTTP API surface
 

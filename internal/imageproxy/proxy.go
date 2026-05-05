@@ -66,11 +66,18 @@ type Proxy struct {
 }
 
 // entryState holds Refresh-time mutable state per registry key.
+//
+// etag holds the upstream ETag verbatim (with quotes). It is only ever set
+// from the upstream response header — never overwritten with a synthesized
+// validator — so If-None-Match never echoes a body-hash to an upstream that
+// doesn't speak ETags. The public validator (returned from Stats() and used
+// as the cache.Envelope validator on writes) falls back to bodyHash when
+// st.etag is empty; see publicValidatorLocked.
 type entryState struct {
 	lastAttempt         time.Time
 	lastSuccess         time.Time
 	lastError           string
-	etag                string // upstream ETag verbatim (with quotes)
+	etag                string // upstream ETag verbatim (with quotes); empty when upstream omits it
 	lastModified        string // upstream Last-Modified verbatim
 	bodyHash            string // sha256:<hex> of last-known body
 	consecutiveFailures int
@@ -154,7 +161,7 @@ func (p *Proxy) Get(ctx context.Context, key string) (body []byte, contentType, 
 	st := p.stateOf(key)
 
 	if b, ct, v, ts, hit := p.hot.Get(key); hit {
-		stale, since := p.staleness(st, ts)
+		stale, since := p.staleness(key, st, ts)
 		if stale {
 			go p.refreshAsync(key)
 		}
@@ -163,7 +170,7 @@ func (p *Proxy) Get(ctx context.Context, key string) (body []byte, contentType, 
 
 	if b, ct, v, ts, derr := p.disk.Get(key); derr == nil {
 		p.hot.Put(key, b, ct, v, ts)
-		stale, since := p.staleness(st, ts)
+		stale, since := p.staleness(key, st, ts)
 		if stale {
 			go p.refreshAsync(key)
 		}
@@ -218,7 +225,7 @@ func (p *Proxy) Refresh(ctx context.Context, key string) error {
 
 	switch {
 	case resp.StatusCode == http.StatusNotModified:
-		p.markSuccess(st, now, st.etag)
+		p.markSuccess(st, now)
 		return nil
 	case resp.StatusCode/100 != 2:
 		ferr := fmt.Errorf("upstream status %d", resp.StatusCode)
@@ -232,7 +239,24 @@ func (p *Proxy) Refresh(ctx context.Context, key string) error {
 		return err
 	}
 
-	contentType := resp.Header.Get("Content-Type")
+	// N3 sanity checks: an upstream that returns 200 OK with text/html (e.g. a
+	// CDN rate-limit page) or with an empty body must NOT poison the cache.
+	// Treat either as a failure — the prior cached bytes (if any) stay intact.
+	// When upstream omits Content-Type entirely, the registry MIME fallback
+	// applies (img.MIME); see README "MIME fallback" note.
+	if len(body) == 0 {
+		ferr := fmt.Errorf("upstream returned empty body")
+		p.markFailure(st, ferr)
+		return ferr
+	}
+	upstreamCT := resp.Header.Get("Content-Type")
+	if upstreamCT != "" && !isImageContentType(upstreamCT) {
+		ferr := fmt.Errorf("upstream returned non-image Content-Type %q", upstreamCT)
+		p.markFailure(st, ferr)
+		return ferr
+	}
+
+	contentType := upstreamCT
 	if contentType == "" {
 		contentType = img.MIME
 	}
@@ -251,10 +275,14 @@ func (p *Proxy) Refresh(ctx context.Context, key string) error {
 		// NOT broadcast. All writes to st.etag/st.lastModified/st.bodyHash MUST
 		// hold p.mu — Stats() reads them under the same lock.
 		p.markValidator(st, upstreamETag, upstreamLM, "")
-		p.markSuccess(st, now, p.publicValidatorOf(st, bodyHash))
+		p.markSuccess(st, now)
 		return nil
 	}
 
+	// Public validator: prefer upstream ETag, fall back to body hash. Used by
+	// disk/hot tier metadata and downstream caches. The synthesized fallback
+	// is NEVER stored in st.etag — that field is upstream-only so we don't
+	// echo a sha256: validator back as If-None-Match on the next request.
 	validator := upstreamETag
 	if validator == "" {
 		validator = bodyHash
@@ -267,7 +295,7 @@ func (p *Proxy) Refresh(ctx context.Context, key string) error {
 	p.hot.Put(key, body, contentType, validator, now)
 
 	p.markValidator(st, upstreamETag, upstreamLM, bodyHash)
-	p.markSuccess(st, now, validator)
+	p.markSuccess(st, now)
 
 	if p.onInvalidate != nil {
 		ev := ImageInvalidate{Source: img.Source, Name: img.Name, FetchedAt: now}
@@ -298,17 +326,6 @@ func (p *Proxy) readBodyHash(st *entryState) string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return st.bodyHash
-}
-
-// publicValidatorOf returns the upstream ETag if non-empty, else the body hash.
-// Takes p.mu internally; caller must NOT hold it.
-func (p *Proxy) publicValidatorOf(st *entryState, bodyHash string) string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if st.etag != "" {
-		return st.etag
-	}
-	return bodyHash
 }
 
 // Stats returns per-key health for /api/sources surfacing.
@@ -368,14 +385,17 @@ func (p *Proxy) markAttempt(st *entryState, now time.Time) {
 	st.lastAttempt = now
 }
 
-func (p *Proxy) markSuccess(st *entryState, now time.Time, validator string) {
+// markSuccess updates lastSuccess/lastError/consecutiveFailures. It does NOT
+// touch st.etag — upstream-validator writes go through markValidator, and
+// the public validator (with body-hash fallback) is synthesized at read time
+// in publicValidatorLocked. See N1 — keeping these split prevents the proxy
+// from echoing a synthesized sha256: validator back to upstreams that don't
+// speak ETags.
+func (p *Proxy) markSuccess(st *entryState, now time.Time) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	st.lastSuccess = now
 	st.lastError = ""
-	if validator != "" {
-		st.etag = validator
-	}
 	st.consecutiveFailures = 0
 }
 
@@ -387,8 +407,10 @@ func (p *Proxy) markFailure(st *entryState, err error) {
 }
 
 // staleness reports whether ts is older than the per-key interval. Also true
-// if a recent failure has been recorded since lastSuccess.
-func (p *Proxy) staleness(st *entryState, ts time.Time) (bool, time.Duration) {
+// if a recent failure has been recorded since lastSuccess. The caller passes
+// the key directly — every caller already knows it, so there's no need to
+// reverse-lookup it from st.
+func (p *Proxy) staleness(key string, st *entryState, ts time.Time) (bool, time.Duration) {
 	p.mu.Lock()
 	failures := st.consecutiveFailures
 	lastSuccess := st.lastSuccess
@@ -397,23 +419,10 @@ func (p *Proxy) staleness(st *entryState, ts time.Time) (bool, time.Duration) {
 	if failures > 0 && !lastSuccess.IsZero() {
 		return true, now.Sub(lastSuccess)
 	}
-	if !ts.IsZero() && now.Sub(ts) >= p.Interval(p.keyForState(st)) {
+	if !ts.IsZero() && now.Sub(ts) >= p.Interval(key) {
 		return true, now.Sub(ts)
 	}
 	return false, 0
-}
-
-// keyForState reverse-lookups the key for an entryState. Linear scan over 20
-// entries is cheap and only runs in the staleness check (off the hot path).
-func (p *Proxy) keyForState(st *entryState) string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	for k, s := range p.state {
-		if s == st {
-			return k
-		}
-	}
-	return ""
 }
 
 func (p *Proxy) refreshAsync(key string) {
@@ -429,4 +438,39 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n]
+}
+
+// isImageContentType reports whether ct (a raw Content-Type header value, possibly
+// with parameters like "; charset=utf-8") names an image media type. The match
+// is case-insensitive on the type and ignores anything after a ";" or whitespace.
+func isImageContentType(ct string) bool {
+	// Trim leading whitespace.
+	i := 0
+	for i < len(ct) && (ct[i] == ' ' || ct[i] == '\t') {
+		i++
+	}
+	ct = ct[i:]
+	// Cut at the first ";" or whitespace to isolate the media type.
+	end := len(ct)
+	for j := 0; j < len(ct); j++ {
+		if ct[j] == ';' || ct[j] == ' ' || ct[j] == '\t' {
+			end = j
+			break
+		}
+	}
+	mediaType := ct[:end]
+	const prefix = "image/"
+	if len(mediaType) < len(prefix) {
+		return false
+	}
+	for k := 0; k < len(prefix); k++ {
+		c := mediaType[k]
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		if c != prefix[k] {
+			return false
+		}
+	}
+	return true
 }
