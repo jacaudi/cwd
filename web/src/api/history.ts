@@ -11,7 +11,15 @@ interface HistoryEnvelope<S extends string> {
 }
 
 export interface NWSAlertsHistory extends HistoryEnvelope<'nws_alerts'> {
-  buckets: Array<{ at: string; activeCount: number }>;
+  buckets: Array<{
+    at: string;
+    activeCount: number;
+    eventCounts: {
+      tornado: number;
+      severeTstorm: number;
+      flashFlood: number;
+    };
+  }>;
 }
 
 export interface SWPCScalesHistory extends HistoryEnvelope<'swpc_scales'> {

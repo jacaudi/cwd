@@ -62,6 +62,25 @@ describe('history client', () => {
     await expect(fetchNWSAlertsHistory('24h')).rejects.toThrow();
   });
 
+  it('NWSAlertsHistory bucket includes eventCounts shape', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      source: 'nws_alerts',
+      window: '24h',
+      buckets: [{
+        at: '2026-05-05T12:00:00Z',
+        activeCount: 42,
+        eventCounts: { tornado: 1, severeTstorm: 2, flashFlood: 0 },
+      }],
+      windowStart: '2026-05-04T12:00:00Z',
+      dataStart: '2026-05-04T12:00:00Z',
+    }), { status: 200 }));
+
+    const got = await fetchNWSAlertsHistory('24h');
+    expect(got.buckets[0].eventCounts.tornado).toBe(1);
+    expect(got.buckets[0].eventCounts.severeTstorm).toBe(2);
+    expect(got.buckets[0].eventCounts.flashFlood).toBe(0);
+  });
+
   it('exports the HistoryWindow union with the three documented values', () => {
     const windows: HistoryWindow[] = ['24h', '7d', '30d'];
     expect(windows).toEqual(['24h', '7d', '30d']);
