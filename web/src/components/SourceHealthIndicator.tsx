@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Tag, Tooltip } from 'antd';
 import type { SourceHealth } from '../api/types';
+import { CONTENT_MAX_WIDTH } from '../layout/constants';
 
 interface Props {
   pollMs?: number;
@@ -34,6 +35,11 @@ export function SourceHealthIndicator({ pollMs = 15000 }: Props) {
   // image proxy adds ~20 image:* entries on top of the 5 data sources).
   // The Tag component already supplies its own margin; row-gap covers the
   // wrapped lines so they don't visually collide.
+  //
+  // Issue #12: the outer container shares the page content max-width
+  // (CONTENT_MAX_WIDTH) so the wrapped tag wall stays aligned under the
+  // cards above it on wide viewports. App.tsx applies the same constraint
+  // to the main content wrapper — keep these two in lockstep.
   return (
     <div
       style={{
@@ -42,6 +48,10 @@ export function SourceHealthIndicator({ pollMs = 15000 }: Props) {
         rowGap: 4,
         columnGap: 8,
         alignItems: 'center',
+        width: '100%',
+        maxWidth: CONTENT_MAX_WIDTH,
+        marginLeft: 'auto',
+        marginRight: 'auto',
       }}
     >
       {Object.entries(data).map(([name, h]) => {
