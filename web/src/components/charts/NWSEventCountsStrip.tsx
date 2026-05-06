@@ -1,6 +1,5 @@
 import { Card, Space, Typography } from 'antd';
 import { Tiny } from '@ant-design/charts';
-import { useIsDark } from '../../theme';
 import type { NWSAlertsHistory } from '../../api/history';
 
 type Buckets = NWSAlertsHistory['buckets'];
@@ -22,7 +21,6 @@ export interface NWSEventCountsStripProps {
 }
 
 export function NWSEventCountsStrip({ buckets }: NWSEventCountsStripProps) {
-  const isDark = useIsDark();
   const latest = buckets.length > 0 ? buckets[buckets.length - 1] : null;
   return (
     <Space size="small" wrap style={{ marginBottom: 12, width: '100%' }}>
@@ -43,7 +41,6 @@ export function NWSEventCountsStrip({ buckets }: NWSEventCountsStripProps) {
                   width={140}
                   shapeField="smooth"
                   style={{ fill: c.color, fillOpacity: 0.2, stroke: c.color }}
-                  theme={isDark ? 'academy' : 'classic'}
                 />
               ) : (
                 <div data-testid="sparkline" style={{ height: 28, width: 140 }} />

@@ -3,14 +3,15 @@ import { describe, it, expect, vi } from 'vitest';
 import { NWSEventCountsStrip } from './NWSEventCountsStrip';
 import type { NWSAlertsHistory } from '../../api/history';
 
+const mockTinyArea = vi.fn();
 vi.mock('@ant-design/charts', () => ({
   Tiny: {
-    Area: ({ data }: { data: number[] }) => (
-      <div data-testid="sparkline">{data.length} pts</div>
-    ),
+    Area: (props: { data: number[] }) => {
+      mockTinyArea(props);
+      return <div data-testid="sparkline">{props.data.length} pts</div>;
+    },
   },
 }));
-vi.mock('../../theme', () => ({ useIsDark: () => true }));
 
 const sample: NWSAlertsHistory['buckets'] = [
   { at: '2026-05-05T12:00:00Z', activeCount: 5,
@@ -45,5 +46,11 @@ describe('NWSEventCountsStrip', () => {
     expect(screen.getByTestId('count-tornado').textContent).toBe('0');
     expect(screen.getByTestId('count-severeTstorm').textContent).toBe('0');
     expect(screen.getByTestId('count-flashFlood').textContent).toBe('0');
+  });
+
+  it('does NOT pass a theme prop on the sparkline (handled by page-level ChartsConfigProvider)', () => {
+    render(<NWSEventCountsStrip buckets={sample} />);
+    const props = mockTinyArea.mock.calls.at(-1)![0] as Record<string, unknown>;
+    expect(props.theme).toBeUndefined();
   });
 });
