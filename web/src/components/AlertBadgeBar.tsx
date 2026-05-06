@@ -49,7 +49,7 @@ export function AlertBadgeBar({ alerts, onTsunamiClick }: Props) {
         return (
           <Tooltip key={key} title={label}>
             <span aria-label={label}>
-              <Badge count={n} showZero color={n > 0 ? undefined : '#999'}>
+              <Badge count={n} showZero={false}>
                 <Tag
                   color={color}
                   onClick={onClick}
