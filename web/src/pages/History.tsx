@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 import { Segmented, Typography } from 'antd';
+import { ConfigProvider as ChartsConfigProvider } from '@ant-design/charts';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { HistoryChartRow, type HistorySource } from '../components/HistoryChartRow';
 import { useHistoryStore } from '../store/history';
+import { useIsDark } from '../theme';
 import type { HistoryWindow } from '../api/history';
 
 const SOURCES: HistorySource[] = [
@@ -19,6 +21,7 @@ export default function History() {
   const parseWindow = useHistoryStore((s) => s.parseWindowFromURL);
   const location = useLocation();
   const navigate = useNavigate();
+  const isDark = useIsDark();
 
   // On mount + on URL change, seed window from ?w= if present.
   useEffect(() => {
@@ -50,9 +53,24 @@ export default function History() {
           onChange={(v) => onWindowChange(v as HistoryWindow)}
         />
       </div>
-      {SOURCES.map((s) => (
-        <HistoryChartRow key={s} source={s} window={window} />
-      ))}
+      {/*
+        Issue #17 finding 1: G2's default ('classic') theme renders axis
+        labels, gridlines, and legend in dark text — invisible on AntD's
+        dark card background. Wrap the chart subtree with the package's
+        ConfigProvider so all charts in /history pick up a built-in
+        dark/light theme. The `key` prop forces a remount on theme toggle
+        as belt-and-suspenders against G2 caching its theme on first
+        mount. No custom palette tokens — the user has explicitly directed
+        Ant-Design built-in `type` only.
+      */}
+      <ChartsConfigProvider
+        key={isDark ? 'dark' : 'light'}
+        common={{ theme: { type: isDark ? 'dark' : 'light' } }}
+      >
+        {SOURCES.map((s) => (
+          <HistoryChartRow key={s} source={s} window={window} />
+        ))}
+      </ChartsConfigProvider>
     </div>
   );
 }
