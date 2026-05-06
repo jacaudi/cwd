@@ -1,6 +1,5 @@
 import { Column } from '@ant-design/charts';
 import { Empty } from 'antd';
-import { useIsDark } from '../../theme';
 import type { HistoryWindow } from '../../api/history';
 import { timeAxisFormatter } from './timeFormat';
 
@@ -16,9 +15,8 @@ interface Flat {
 }
 
 export function SWPCAlertsBars({ data, window }: SWPCAlertsBarsProps) {
-  const isDark = useIsDark();
-  if (data.length === 0) {
-    return <Empty description="No data in this window" />;
+  if (data.every((b) => b.warning + b.watch + b.alert === 0)) {
+    return <Empty description="No alerts in this window" />;
   }
   const flat: Flat[] = data.flatMap((b) => {
     const at = new Date(b.at);
@@ -41,7 +39,6 @@ export function SWPCAlertsBars({ data, window }: SWPCAlertsBarsProps) {
         x: { title: false, labelFormatter: timeAxisFormatter(window) },
         y: { title: 'count' },
       }}
-      theme={isDark ? 'academy' : 'classic'}
     />
   );
 }
