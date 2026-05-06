@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ReactNode } from 'react';
 import { HistoryChartRow } from './HistoryChartRow';
 
 vi.mock('../api/history', () => ({
@@ -8,6 +9,15 @@ vi.mock('../api/history', () => ({
   fetchSWPCAlertsHistory: vi.fn(),
   fetchUSGSQuakesHistory: vi.fn(),
   fetchUSGSVolcanoesHistory: vi.fn(),
+}));
+
+// Passthrough mock for the chart-package ConfigProvider — set up by Task 8's
+// page-level wrapping in pages/History.tsx. Not strictly needed by these
+// tests today (they stub HistoryChartRow's chart subcomponents), but kept
+// here so a future test that renders pages/History through the real wrapper
+// doesn't have to reintroduce it.
+vi.mock('@ant-design/charts', () => ({
+  ConfigProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('./charts/NWSAlertsArea', () => ({ NWSAlertsArea: ({ data }: { data: unknown[] }) => <div data-testid="nws-area">{data.length}</div> }));
