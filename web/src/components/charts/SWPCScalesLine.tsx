@@ -1,6 +1,5 @@
 import { Line } from '@ant-design/charts';
 import { Empty } from 'antd';
-import { useIsDark } from '../../theme';
 import type { HistoryWindow } from '../../api/history';
 import { timeAxisFormatter } from './timeFormat';
 
@@ -16,7 +15,6 @@ interface Flat {
 }
 
 export function SWPCScalesLine({ data, window }: SWPCScalesLineProps) {
-  const isDark = useIsDark();
   if (data.length === 0) {
     return <Empty description="No data in this window" />;
   }
@@ -36,13 +34,12 @@ export function SWPCScalesLine({ data, window }: SWPCScalesLineProps) {
       colorField="series"
       shapeField="hv"
       height={180}
-      scale={{ x: { type: 'time' }, color: { range: ['#fa8c16', '#f5222d', '#1890ff'] } }}
+      scale={{ color: { range: ['#fa8c16', '#f5222d', '#1890ff'] } }}
       axis={{
         x: { title: false, labelFormatter: timeAxisFormatter(window) },
         y: { title: 'value' },
       }}
       point={{ shapeField: 'point', sizeField: 3 }}
-      theme={isDark ? 'academy' : 'classic'}
     />
   );
 }

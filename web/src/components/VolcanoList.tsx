@@ -1,6 +1,6 @@
 import { List, Space, Tag, Typography } from 'antd';
 import { ExportOutlined } from '@ant-design/icons';
-import type { AlertLevel, ColorCode, Volcano } from '../api/types';
+import type { AlertLevel, Volcano } from '../api/types';
 
 interface Props {
   volcanoes: Volcano[];
@@ -11,13 +11,6 @@ const ALERT_COLOR: Record<AlertLevel, string> = {
   ADVISORY: 'gold',
   WATCH:    'orange',
   WARNING:  'red',
-};
-
-const COLOR_CHIP: Record<ColorCode, string> = {
-  GREEN:  'green',
-  YELLOW: 'gold',
-  ORANGE: 'orange',
-  RED:    'red',
 };
 
 function relative(iso: string): string {
@@ -58,7 +51,6 @@ export function VolcanoList({ volcanoes }: Props) {
                 >
                   {v.alert}
                 </Tag>
-                <Tag color={COLOR_CHIP[v.color] ?? 'default'}>{v.color}</Tag>
                 {v.updatedAt && (
                   <Typography.Text type="secondary">· {relative(v.updatedAt)}</Typography.Text>
                 )}

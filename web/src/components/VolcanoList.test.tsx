@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { VolcanoList } from './VolcanoList';
 import type { Volcano } from '../api/types';
 
@@ -42,9 +42,27 @@ describe('VolcanoList', () => {
     expect(tags[2].getAttribute('data-alert')).toBe('WARNING');
   });
 
-  it('renders the color-code chip', () => {
+  it('does NOT render a separate color-code chip (color is conveyed by the alert-level chip)', () => {
     render(<VolcanoList volcanoes={[mk({ color: 'ORANGE' })]} />);
-    expect(screen.getByText('ORANGE')).toBeInTheDocument();
+    // The literal "ORANGE" (or any color-code label) should not appear as a Tag.
+    expect(screen.queryByText('ORANGE')).toBeNull();
+    expect(screen.queryByText('YELLOW')).toBeNull();
+    expect(screen.queryByText('RED')).toBeNull();
+    expect(screen.queryByText('GREEN')).toBeNull();
+  });
+
+  it('renders exactly one chip per volcano (the alert-level chip)', () => {
+    render(<VolcanoList volcanoes={[mk({ alert: 'WATCH', color: 'ORANGE' })]} />);
+    const tags = screen.getAllByTestId('volcano-alert-tag');
+    expect(tags).toHaveLength(1);
+    // Sanity: scope a query inside the row's Space to assert no second Tag sibling
+    // by looking at the AntD .ant-tag class count within the alert tag's parent.
+    const row = tags[0].closest('.ant-list-item');
+    expect(row).not.toBeNull();
+    if (row) {
+      const allTags = within(row as HTMLElement).getAllByText(/.+/, { selector: '.ant-tag' });
+      expect(allTags).toHaveLength(1);
+    }
   });
 
   it('renders external link', () => {
@@ -55,21 +73,16 @@ describe('VolcanoList', () => {
     expect(link.rel).toContain('noopener');
   });
 
-  // Guards against an upstream introducing a new AlertLevel/ColorCode value
-  // we haven't mapped — the chips should still render with antd's `default`
-  // color (a defined fallback) rather than passing `undefined` to <Tag color>,
-  // which produces an unstyled `ant-tag` chip with no color class.
-  it('falls back to antd default color when alert/color values are unknown', () => {
+  // Guards against an upstream introducing a new AlertLevel value we haven't
+  // mapped — the alert chip should still render with antd's `default` color
+  // (a defined fallback) rather than passing `undefined` to <Tag color>.
+  it('falls back to antd default color when alert value is unknown', () => {
     const rogue = mk({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       alert: 'FUTURE_LEVEL' as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      color: 'PURPLE' as any,
     });
     expect(() => render(<VolcanoList volcanoes={[rogue]} />)).not.toThrow();
     const alertTag = screen.getByTestId('volcano-alert-tag');
     expect(alertTag.className).toContain('ant-tag-default');
-    const colorTag = screen.getByText('PURPLE');
-    expect(colorTag.className).toContain('ant-tag-default');
   });
 });
