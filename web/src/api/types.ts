@@ -18,9 +18,9 @@ export interface VersionInfo {
 export type Severity = 'Extreme' | 'Severe' | 'Moderate' | 'Minor' | 'Unknown';
 
 export type Category =
-  | 'Tornado' | 'SevereThunderstorm' | 'FlashFlood' | 'Tropical'
+  | 'Tornado' | 'SevereThunderstorm' | 'FlashFlood' | 'Flood' | 'Tropical'
   | 'HighWind' | 'RedFlag' | 'Winter' | 'ExtremeHeat' | 'ExtremeCold'
-  | 'Tsunami' | 'Unknown';
+  | 'Marine' | 'Tsunami' | 'Unknown';
 
 export interface Alert {
   id: string;
