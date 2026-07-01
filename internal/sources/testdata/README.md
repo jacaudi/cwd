@@ -6,7 +6,7 @@ the captured-on dates document expected drift over time.
 
 | File | Captured | Notes |
 |---|---|---|
-| `alerts_active_mixed.json` | 2026-05-02 | Live capture, mixed event types |
+| `alerts_active_mixed.json` | 2026-07-01 | Re-captured for issue #3 (expanded category map). Curated from a live `alerts/active` pull — up to 2 features per distinct event type — plus two synthetic features (`Tornado Watch`, `Storm Surge Watch`) modeled on real NWS structure to exercise the new Watch mappings that were seasonally absent from the July pull. Exercises the new `Flood` and `Marine` families and leaves zero Severe/Extreme events uncategorized (drift canary silent). |
 | `alerts_active_empty.json` | 2026-05-02 | Hand-crafted, zero features |
 | `alerts_active_tsunami.json` | 2026-05-02 | Synthetic TSU AWIPS prefix |
 

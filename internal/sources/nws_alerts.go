@@ -36,12 +36,14 @@ const (
 	CatTornado            Category = "Tornado"
 	CatSevereThunderstorm Category = "SevereThunderstorm"
 	CatFlashFlood         Category = "FlashFlood"
+	CatFlood              Category = "Flood"
 	CatTropical           Category = "Tropical"
 	CatHighWind           Category = "HighWind"
 	CatRedFlag            Category = "RedFlag"
 	CatWinter             Category = "Winter"
 	CatExtremeHeat        Category = "ExtremeHeat"
 	CatExtremeCold        Category = "ExtremeCold"
+	CatMarine             Category = "Marine"
 	CatTsunami            Category = "Tsunami"
 	CatUnknown            Category = "Unknown"
 )
@@ -67,23 +69,84 @@ type Alert struct {
 	Category  Category  `json:"category"`
 }
 
+// eventCategoryMap maps NWS `properties.event` text to a badge Category.
+//
+// Phase 1 (PR #2) intentionally restricted this to Warnings only to match the
+// original NCEP CWD page. Issue #3 expands it to cover the corresponding
+// Watches and a handful of Advisories/Statements, and adds two new hazard
+// families — Flood (areal/coastal flooding, distinct from FlashFlood) and
+// Marine (offshore/coastal-waters products) — so the production drift canary
+// (`nws_alerts.unmapped_severe_event`) stops firing on routine Severe/Extreme
+// events such as Tornado Watch, Flood Warning, Freeze Watch, Fire Weather Watch,
+// Special Marine Warning, and Storm Surge Watch.
+//
+// Tsunami is deliberately absent here: it is matched by the AWIPS "TSU" prefix
+// in categorize() rather than by event text.
 var eventCategoryMap = map[string]Category{
-	"Tornado Warning":             CatTornado,
+	// Tornado
+	"Tornado Warning": CatTornado,
+	"Tornado Watch":   CatTornado,
+	// Severe thunderstorm
 	"Severe Thunderstorm Warning": CatSevereThunderstorm,
-	"Flash Flood Warning":         CatFlashFlood,
-	"Storm Surge Warning":         CatTropical,
-	"Hurricane Warning":           CatTropical,
-	"Typhoon Warning":             CatTropical,
-	"Tropical Storm Warning":      CatTropical,
-	"High Wind Warning":           CatHighWind,
-	"Extreme Wind Warning":        CatHighWind,
-	"Red Flag Warning":            CatRedFlag,
-	"Winter Storm Warning":        CatWinter,
-	"Blizzard Warning":            CatWinter,
-	"Ice Storm Warning":           CatWinter,
-	"Snow Squall Warning":         CatWinter,
-	"Extreme Heat Warning":        CatExtremeHeat,
-	"Extreme Cold Warning":        CatExtremeCold,
+	"Severe Thunderstorm Watch":   CatSevereThunderstorm,
+	// Flash flood (rapid-onset)
+	"Flash Flood Warning": CatFlashFlood,
+	"Flash Flood Watch":   CatFlashFlood,
+	// Flood (areal / river / coastal, slower-onset)
+	"Flood Warning":           CatFlood,
+	"Flood Watch":             CatFlood,
+	"Flood Advisory":          CatFlood,
+	"Coastal Flood Warning":   CatFlood,
+	"Coastal Flood Watch":     CatFlood,
+	"Coastal Flood Advisory":  CatFlood,
+	"Coastal Flood Statement": CatFlood,
+	// Tropical
+	"Storm Surge Warning":    CatTropical,
+	"Storm Surge Watch":      CatTropical,
+	"Hurricane Warning":      CatTropical,
+	"Hurricane Watch":        CatTropical,
+	"Typhoon Warning":        CatTropical,
+	"Typhoon Watch":          CatTropical,
+	"Tropical Storm Warning": CatTropical,
+	"Tropical Storm Watch":   CatTropical,
+	// High wind
+	"High Wind Warning":    CatHighWind,
+	"High Wind Watch":      CatHighWind,
+	"Extreme Wind Warning": CatHighWind,
+	"Wind Advisory":        CatHighWind,
+	// Red flag / fire weather
+	"Red Flag Warning":   CatRedFlag,
+	"Fire Weather Watch": CatRedFlag,
+	// Winter
+	"Winter Storm Warning":    CatWinter,
+	"Winter Storm Watch":      CatWinter,
+	"Winter Weather Advisory": CatWinter,
+	"Blizzard Warning":        CatWinter,
+	"Blizzard Watch":          CatWinter,
+	"Ice Storm Warning":       CatWinter,
+	"Snow Squall Warning":     CatWinter,
+	// Extreme heat
+	"Extreme Heat Warning": CatExtremeHeat,
+	"Extreme Heat Watch":   CatExtremeHeat,
+	"Heat Advisory":        CatExtremeHeat,
+	// Extreme cold
+	"Extreme Cold Warning": CatExtremeCold,
+	"Extreme Cold Watch":   CatExtremeCold,
+	"Freeze Warning":       CatExtremeCold,
+	"Freeze Watch":         CatExtremeCold,
+	"Frost Advisory":       CatExtremeCold,
+	"Wind Chill Warning":   CatExtremeCold,
+	"Wind Chill Watch":     CatExtremeCold,
+	"Wind Chill Advisory":  CatExtremeCold,
+	// Marine (offshore / coastal waters)
+	"Special Marine Warning":       CatMarine,
+	"Gale Warning":                 CatMarine,
+	"Gale Watch":                   CatMarine,
+	"Storm Warning":                CatMarine,
+	"Storm Watch":                  CatMarine,
+	"Hurricane Force Wind Warning": CatMarine,
+	"Hazardous Seas Warning":       CatMarine,
+	"Hazardous Seas Watch":         CatMarine,
 }
 
 func categorize(event, awips string) Category {

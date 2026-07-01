@@ -6,12 +6,14 @@ const ORDER: { key: Exclude<Category, 'Unknown'>; label: string }[] = [
   { key: 'Tornado', label: 'Tornado' },
   { key: 'SevereThunderstorm', label: 'Severe Thunderstorm' },
   { key: 'FlashFlood', label: 'Flash Flood' },
+  { key: 'Flood', label: 'Flood' },
   { key: 'Tropical', label: 'Tropical' },
   { key: 'HighWind', label: 'High Wind' },
   { key: 'RedFlag', label: 'Red Flag' },
   { key: 'Winter', label: 'Winter' },
   { key: 'ExtremeHeat', label: 'Extreme Heat' },
   { key: 'ExtremeCold', label: 'Extreme Cold' },
+  { key: 'Marine', label: 'Marine' },
   { key: 'Tsunami', label: 'Tsunami' },
 ];
 
@@ -19,12 +21,14 @@ const COLOR: Record<Exclude<Category, 'Unknown'>, string> = {
   Tornado: 'red',
   SevereThunderstorm: 'volcano',
   FlashFlood: 'cyan',
+  Flood: 'blue',
   Tropical: 'magenta',
   HighWind: 'gold',
   RedFlag: 'orange',
   Winter: 'blue',
   ExtremeHeat: 'red',
   ExtremeCold: 'geekblue',
+  Marine: 'green',
   Tsunami: 'purple',
 };
 

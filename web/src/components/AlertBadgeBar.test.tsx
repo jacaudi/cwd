@@ -18,18 +18,20 @@ const a = (cat: Category, over: Partial<Alert> = {}): Alert => ({
 });
 
 describe('AlertBadgeBar', () => {
-  it('renders all 10 chips with zero counts when payload empty', () => {
+  it('renders all 12 chips with zero counts when payload empty', () => {
     render(<AlertBadgeBar alerts={[]} onTsunamiClick={() => {}} />);
     for (const label of [
       'Tornado',
       'Severe Thunderstorm',
       'Flash Flood',
+      'Flood',
       'Tropical',
       'High Wind',
       'Red Flag',
       'Winter',
       'Extreme Heat',
       'Extreme Cold',
+      'Marine',
       'Tsunami',
     ]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
@@ -51,6 +53,13 @@ describe('AlertBadgeBar', () => {
     expect(within(tornadoWrapper).getByText('2')).toBeInTheDocument();
     const tsunamiWrapper = screen.getByLabelText('Tsunami');
     expect(within(tsunamiWrapper).getByText('1')).toBeInTheDocument();
+  });
+
+  it('renders and counts the new Flood and Marine categories (issue #3)', () => {
+    const alerts = [a('Flood'), a('Flood'), a('Flood'), a('Marine')];
+    render(<AlertBadgeBar alerts={alerts} onTsunamiClick={() => {}} />);
+    expect(within(screen.getByLabelText('Flood')).getByText('3')).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Marine')).getByText('1')).toBeInTheDocument();
   });
 
   it('counts alerts by category and ignores Unknown', () => {
